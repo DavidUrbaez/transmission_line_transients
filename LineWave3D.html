@@ -1027,38 +1027,108 @@
       let vmaxAbs = 1e-6, peakFar = 0;
       const fr = new Float64Array(Nfft), fi = new Float64Array(Nfft);
 
-      // Split-and-mask for the dispersive (FD) model. The full field at x is the incident first transit PLUS
-      // everything that has reflected (load reflection + source bounces). The reflected content is carried by
-      // e^{−γ·(2L−x)}, whose phase β(ω) is strongly NONLINEAR in FD — so its inverse transform is NOT a clean
-      // delayed pulse but a dispersed kernel whose precursor leaks back to the onset, showing up as the negative
-      // undershoot at x=0,t=tStart (acausal: nothing can return before the reflection has travelled 2L−x). We
-      // reconstruct the incident part (S·fwd, exact) and the reflected/bounce remainder SEPARATELY, and zero the
-      // remainder before its causal arrival tStart+(2L−x)/v. CRUCIAL: both parts use the SAME nominal velocity v,
-      // so the incident mask tStart+x/v and the reflection mask tStart+(2L−x)/v COINCIDE exactly at x=L — there
-      // the incident and its inverted reflection (Γl=−1 short) must cancel to V=0, and masking them at different
-      // times would break that cancellation, leaving spurious magnitude at the reflecting end instead of a clean
-      // flip. (The small fast FD precursor between (2L−x)/v∞ and (2L−x)/v is clipped — the same approximation the
-      // incident already makes at its own nominal arrival — a fair price for an exact boundary condition.) In
-      // lossless/distortionless/CP the reflected term is already a (near-)pure delay e^{−jω·2τ}, causal on its
-      // own, so the split is a no-op and the original single-IFFT path is kept untouched.
+      // Per-bounce causal masking for the dispersive (FD) model. In FD the phase β(ω) is strongly NONLINEAR, so
+      // e^{−γ·d} is NOT a clean delayed pulse: its inverse transform is a dispersed kernel whose PRECURSOR leaks
+      // back in time ahead of the true arrival. Lumping the whole field into one IFFT then lets the precursor of
+      // each bounce contaminate the (quiet) interval before it — e.g. the 4τ bounce's precursor dipping into the
+      // 2τ return bounce at x=0. The cure is to reconstruct the field as the sum of its individual bounce terms
+      // and zero EACH before its own causal arrival. The bounce expansion is exact:
+      //     V(x,ω) = Σ_{m≥0} [ fwd · (ΓsΓl)^m A^{2m} ] · S        (forward terms,  arrive (2m + x/L)·τ)
+      //            + Σ_{m≥0} [ Γl·A·bwd · (ΓsΓl)^m A^{2m} ] · S    (backward terms, arrive (2m+2 − x/L)·τ)
+      // summing to S·(fwd + Γl·A·bwd)·Σ(ΓsΓl A²)^m = the original full field. Each term is a single clean arrival,
+      // so masking it at its own time removes ALL inter-bounce precursor leak at every position. CRUCIAL: at x=L
+      // the paired forward_m and backward_m arrive at the SAME instant ((2m+1)τ), so their inverted-short sum
+      // (Γl=−1) still cancels to V=0 — the clean flip is preserved. Only the FD model needs this (lossless/CP have
+      // a near-pure delay, no precursor) and only the partial-sum (travelling-wave) case can be enumerated by
+      // bounce; the settled closed-form (step-that-settles / switching) keeps the lighter incident+remainder
+      // split below. Cost: ~2 IFFTs per in-view bounce order (≈Tdisp/2τ of them) per column, FD only.
       const dispersive = (state === 'wideband');
-      const fr2 = dispersive ? new Float64Array(Nfft) : null;
-      const fi2 = dispersive ? new Float64Array(Nfft) : null;
+      const perBounce = dispersive && !useSettledSum;
+      const GsGl = Gs * Gl;
+      // A² per bin (forward round-trip factor), reused across columns for the bounce powers A^{2m}
+      const A2_re = perBounce ? new Float64Array(half + 1) : null;
+      const A2_im = perBounce ? new Float64Array(half + 1) : null;
+      if (perBounce) for (let kk = 0; kk <= half; kk++) {
+        A2_re[kk] = A_re[kk] * A_re[kk] - A_im[kk] * A_im[kk];
+        A2_im[kk] = 2 * A_re[kk] * A_im[kk];
+      }
+      const acc = perBounce ? new Float64Array(Nfft) : null;                 // per-column summed time signal
+      const Pm_re = perBounce ? new Float64Array(half + 1) : null;           // A^{2m} accumulator (real)
+      const Pm_im = perBounce ? new Float64Array(half + 1) : null;           // A^{2m} accumulator (imag)
+      // Incident+remainder split for the settled (closed-form) dispersive case only.
+      const fr2 = (dispersive && !perBounce) ? new Float64Array(Nfft) : null;
+      const fi2 = (dispersive && !perBounce) ? new Float64Array(Nfft) : null;
 
       for (let i = 0; i < NX; i++) {
         // Causality: a disturbance launched at the source (x=0, time tStart) cannot reach position x before
         // t = tStart + x/v. The line is provably at rest until then, so any value the FFT places there (Gibbs
         // pre-ringing on a sharp front, or periodic wrap-around) is spurious and is masked to exactly 0. This
         // guarantees a 0 V initial state across x for every source type and line model.
-        const tArr = tStart + (i / (NX - 1)) * tau;
-        // Earliest a reflected/bounce contribution can reach x: the load reflection, having travelled (2L−x) at
-        // velocity v. All higher bounces arrive later, so this single bound gates the whole remainder. Same v as
-        // the incident mask above ⇒ the two coincide at x=L, keeping the short-circuit cancellation exact.
-        const tReflArr = tStart + (2 - i / (NX - 1)) * tau;
+        const p = i / (NX - 1);                          // position fraction x/L
+        const tArr = tStart + p * tau;
+        const tReflArr = tStart + (2 - p) * tau;         // first reflection arrival (used by the settled split)
         const fwdR = powRe[i], fwdI = powIm[i];          // step^i
         const bwdR = powRe[NX - 1 - i], bwdI = powIm[NX - 1 - i];     // step^(NX-1-i)
-        // build full spectrum F[k] = S[k] * T[k]  (k=0..half), Hermitian mirror after. When dispersive, also build
-        // the incident-only spectrum S·fwd in (fr2,fi2); the reflected remainder is then (full − incident).
+
+        if (perBounce) {
+          // Reconstruct and accumulate each bounce term, masked at its own causal arrival.
+          acc.fill(0);
+          for (let kk = 0; kk <= half; kk++) { Pm_re[kk] = 1; Pm_im[kk] = 0; }   // A^{0} = 1
+          let cm = 1;                                                            // (ΓsΓl)^m, m = 0
+          for (let m = 0; m <= NBd; m++) {
+            const tF = tStart + (2 * m + p) * tau;          // forward term arrival
+            const tB = tStart + (2 * m + 2 - p) * tau;      // backward term arrival (≥ tF, so it gates the break)
+            if (tF > Tdisp) break;                          // this and every higher order arrive off-screen
+            // forward term  S · cm · A^{2m} · fwd
+            for (let kk = 0; kk <= half; kk++) {
+              const cR = cm * Pm_re[kk], cI = cm * Pm_im[kk];          // cm · A^{2m}
+              const pfR = cR * fwdR[kk] - cI * fwdI[kk];               // · fwd
+              const pfI = cR * fwdI[kk] + cI * fwdR[kk];
+              fr[kk] = sre[kk] * pfR - sim[kk] * pfI;                  // · S
+              fi[kk] = sre[kk] * pfI + sim[kk] * pfR;
+            }
+            for (let kk = 1; kk < half; kk++) { fr[Nfft - kk] = fr[kk]; fi[Nfft - kk] = -fi[kk]; }
+            fi[0] = 0; fi[half] = 0;
+            fft(fr, fi, true);
+            for (let n = Math.max(0, Math.ceil(tF / dt)); n < Nfft; n++) acc[n] += fr[n];
+            // backward term  S · Γl · cm · A^{2m} · A · bwd
+            if (tB <= Tdisp) {
+              for (let kk = 0; kk <= half; kk++) {
+                const cR = Gl * cm * Pm_re[kk], cI = Gl * cm * Pm_im[kk];        // Γl · cm · A^{2m}
+                const aR = cR * A_re[kk] - cI * A_im[kk];                        // · A
+                const aI = cR * A_im[kk] + cI * A_re[kk];
+                const abR = aR * bwdR[kk] - aI * bwdI[kk];                       // · bwd
+                const abI = aR * bwdI[kk] + aI * bwdR[kk];
+                fr[kk] = sre[kk] * abR - sim[kk] * abI;                          // · S
+                fi[kk] = sre[kk] * abI + sim[kk] * abR;
+              }
+              for (let kk = 1; kk < half; kk++) { fr[Nfft - kk] = fr[kk]; fi[Nfft - kk] = -fi[kk]; }
+              fi[0] = 0; fi[half] = 0;
+              fft(fr, fi, true);
+              for (let n = Math.max(0, Math.ceil(tB / dt)); n < Nfft; n++) acc[n] += fr[n];
+            }
+            // advance to order m+1:  A^{2(m+1)} = A^{2m}·A²,  (ΓsΓl)^{m+1}
+            for (let kk = 0; kk <= half; kk++) {
+              const r = Pm_re[kk] * A2_re[kk] - Pm_im[kk] * A2_im[kk];
+              const im = Pm_re[kk] * A2_im[kk] + Pm_im[kk] * A2_re[kk];
+              Pm_re[kk] = r; Pm_im[kk] = im;
+            }
+            cm *= GsGl;
+          }
+          for (let j = 0; j < NT; j++) {
+            const tNow = (j / (NT - 1)) * Tdisp;
+            const tf = tNow / dt;
+            const i0 = Math.min(Nfft - 2, Math.max(0, Math.floor(tf)));
+            const val = (tNow < tArr) ? 0 : acc[i0] + (acc[i0 + 1] - acc[i0]) * (tf - i0);
+            V[j * NX + i] = val;
+            const av = Math.abs(val); if (av > vmaxAbs) vmaxAbs = av;
+            if (i === NX - 1 && val > peakFar) peakFar = val;
+          }
+          continue;
+        }
+
+        // build full spectrum F[k] = S[k] * T[k]  (k=0..half), Hermitian mirror after. When dispersive (settled),
+        // also build the incident-only spectrum S·fwd in (fr2,fi2); the reflected remainder is then (full − incident).
         for (let kk = 0; kk <= half; kk++) {
           // backFactor = Γl * A * bwd
           const abR = A_re[kk] * bwdR[kk] - A_im[kk] * bwdI[kk];
@@ -1072,7 +1142,7 @@
           // × source spectrum
           fr[kk] = sre[kk] * Tr - sim[kk] * Ti;
           fi[kk] = sre[kk] * Ti + sim[kk] * Tr;
-          if (dispersive) {
+          if (fr2) {
             // incident-only: S · fwd  (the very first transit; its IFFT is exact, no reflection mixed in)
             fr2[kk] = sre[kk] * fwdR[kk] - sim[kk] * fwdI[kk];
             fi2[kk] = sre[kk] * fwdI[kk] + sim[kk] * fwdR[kk];
@@ -1082,7 +1152,7 @@
         for (let kk = 1; kk < half; kk++) { fr[Nfft - kk] = fr[kk]; fi[Nfft - kk] = -fi[kk]; }
         fi[0] = 0; fi[half] = 0;
         fft(fr, fi, true);                                       // → time domain (real)
-        if (dispersive) {
+        if (fr2) {
           for (let kk = 1; kk < half; kk++) { fr2[Nfft - kk] = fr2[kk]; fi2[Nfft - kk] = -fi2[kk]; }
           fi2[0] = 0; fi2[half] = 0;
           fft(fr2, fi2, true);                                   // incident-only, time domain
@@ -1094,7 +1164,7 @@
           const tf = tNow / dt;
           const i0 = Math.min(Nfft - 2, Math.max(0, Math.floor(tf)));
           let val;
-          if (dispersive) {
+          if (fr2) {
             // incident (masked at its own arrival) + reflected remainder (masked at the reflection's arrival)
             const incNow = fr2[i0] + (fr2[i0 + 1] - fr2[i0]) * (tf - i0);
             const fullNow = fr[i0] + (fr[i0 + 1] - fr[i0]) * (tf - i0);
@@ -1515,7 +1585,7 @@
         .name('Waveform')
         .onChange(() => {
           invalidate(); resetReveal(); syncSourceCtrls(true); drawSourceInset();
-          syncWindowCtrl(true); recompute();
+          syncWindowCtrl(true); syncTermCtrls(); recompute();
         });   // retune window range/default for the new source, then rebuild
       const frontCtrl = fsrc.add(params, 'frontUs', 0.1, 20, 0.1).name('Front time (µs)').onChange(() => { invalidate(); drawSourceInset(); syncWindowCtrl(false); recomputeSoon(); });
       const tailCtrl = fsrc.add(params, 'tailUs', 5, 120, 1).name('Tail time (µs)').onChange(() => { invalidate(); drawSourceInset(); syncWindowCtrl(false); recomputeSoon(); });
@@ -1588,8 +1658,15 @@
       const zsrcCtrl = ft.add(params, 'Zsource', 1, 4000, 1).name('Z_source (Ω, custom)').onChange(() => { invalidate(); recomputeSoon(); });
       const farCtrl = ft.add(params, 'termination', { 'Open (Γ=+1, Ferranti doubling)': 'open', 'Short (Γ=−1, V cancels)': 'short', 'Matched (Γ=0, absorbed)': 'matched', 'Custom Z_load': 'custom' }).name('Far end (x=L)');
       const zloadCtrl = ft.add(params, 'Zload', 1, 4000, 1).name('Z_load (Ω, custom)').onChange(() => { invalidate(); recomputeSoon(); });
-      // each end's custom-Z slider is visible only when that end is set to "custom"
-      function syncTermCtrls() { zsrcCtrl.show(params.sourceTerm === 'custom'); zloadCtrl.show(params.termination === 'custom'); }
+      // Source-end controls are only meaningful for lightning (the injected impulse has a defined source impedance).
+      // For step / switching / sine the source is treated as an ideal short (Γs=−1); hide the selector and enforce it.
+      function syncTermCtrls() {
+        const lightning = (params.sourceType === 'lightning');
+        srcCtrl.show(lightning);
+        if (!lightning) { params.sourceTerm = 'short'; srcCtrl.updateDisplay(); }
+        zsrcCtrl.show(lightning && params.sourceTerm === 'custom');
+        zloadCtrl.show(params.termination === 'custom');
+      }
       srcCtrl.onChange(() => { invalidate(); resetReveal(); recompute(); syncTermCtrls(); });
       farCtrl.onChange(() => { invalidate(); resetReveal(); recompute(); syncTermCtrls(); });
       syncTermCtrls();
