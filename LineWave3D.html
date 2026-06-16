@@ -1059,6 +1059,18 @@
       const acc = perBounce ? new Float64Array(Nfft) : null;                 // per-column summed time signal
       const Pm_re = perBounce ? new Float64Array(half + 1) : null;           // A^{2m} accumulator (real)
       const Pm_im = perBounce ? new Float64Array(half + 1) : null;           // A^{2m} accumulator (imag)
+      // Cost cap: enumerate only the first MCAP bounce orders per-bounce (≈2 IFFTs each — these are the strong,
+      // time-separated EARLY bounces where the precursor-leak fix and the distinct arrivals actually matter). Any
+      // in-window orders beyond MCAP are LUMPED into ONE extra IFFT via the geometric remainder Σ_{m>MCAP} r^m
+      // (r = ΓsΓl·A²) — an EXACT partial sum, so no pole/wrap (it's bounded by the same tF>Tdisp / NBd≤NBdWrap
+      // guards). In FD these far orders carry round-trip attenuation A^{2m} that skin-effect has crushed at the
+      // sharp-front frequencies, so they're a smooth, low-amplitude late-time creep with negligible precursor —
+      // one shared causal mask (at their earliest arrival) is visually indistinguishable from masking each. This
+      // bounds cost at ~2·MCAP+1 IFFTs/column regardless of how far the window slider is pushed (e.g. 50τ). When
+      // NBd ≤ MCAP (normal windows) the tail never activates and behavior is byte-for-byte the old path.
+      const MCAP = 8;
+      const Rt_re = perBounce ? new Float64Array(half + 1) : null;           // Σ_{m>MCAP} r^m  remainder (real)
+      const Rt_im = perBounce ? new Float64Array(half + 1) : null;           // Σ_{m>MCAP} r^m  remainder (imag)
       // Incident+remainder split for the settled (closed-form) dispersive case only.
       const fr2 = (dispersive && !perBounce) ? new Float64Array(Nfft) : null;
       const fi2 = (dispersive && !perBounce) ? new Float64Array(Nfft) : null;
@@ -1079,37 +1091,48 @@
           acc.fill(0);
           for (let kk = 0; kk <= half; kk++) { Pm_re[kk] = 1; Pm_im[kk] = 0; }   // A^{0} = 1
           let cm = 1;                                                            // (ΓsΓl)^m, m = 0
+          let tailActive = false, tTailMask = Infinity;                          // far-bounce lump (orders > MCAP)
+          Rt_re.fill(0); Rt_im.fill(0);
           for (let m = 0; m <= NBd; m++) {
             const tF = tStart + (2 * m + p) * tau;          // forward term arrival
             const tB = tStart + (2 * m + 2 - p) * tau;      // backward term arrival (≥ tF, so it gates the break)
             if (tF > Tdisp) break;                          // this and every higher order arrive off-screen
-            // forward term  S · cm · A^{2m} · fwd
-            for (let kk = 0; kk <= half; kk++) {
-              const cR = cm * Pm_re[kk], cI = cm * Pm_im[kk];          // cm · A^{2m}
-              const pfR = cR * fwdR[kk] - cI * fwdI[kk];               // · fwd
-              const pfI = cR * fwdI[kk] + cI * fwdR[kk];
-              fr[kk] = sre[kk] * pfR - sim[kk] * pfI;                  // · S
-              fi[kk] = sre[kk] * pfI + sim[kk] * pfR;
-            }
-            for (let kk = 1; kk < half; kk++) { fr[Nfft - kk] = fr[kk]; fi[Nfft - kk] = -fi[kk]; }
-            fi[0] = 0; fi[half] = 0;
-            fft(fr, fi, true);
-            for (let n = Math.max(0, Math.ceil(tF / dt)); n < Nfft; n++) acc[n] += fr[n];
-            // backward term  S · Γl · cm · A^{2m} · A · bwd
-            if (tB <= Tdisp) {
+            if (m > MCAP) {
+              // Defer: fold r^m = cm·A^{2m} into the geometric remainder, lumped into one IFFT after the loop.
+              if (!tailActive) { tailActive = true; tTailMask = tF; }   // earliest far arrival gates the lump
+              for (let kk = 0; kk <= half; kk++) {                       // r^m = cm·A^{2m}  (cm real, Pm complex)
+                Rt_re[kk] += cm * Pm_re[kk];
+                Rt_im[kk] += cm * Pm_im[kk];
+              }
+            } else {
+              // forward term  S · cm · A^{2m} · fwd
               for (let kk = 0; kk <= half; kk++) {
-                const cR = Gl * cm * Pm_re[kk], cI = Gl * cm * Pm_im[kk];        // Γl · cm · A^{2m}
-                const aR = cR * A_re[kk] - cI * A_im[kk];                        // · A
-                const aI = cR * A_im[kk] + cI * A_re[kk];
-                const abR = aR * bwdR[kk] - aI * bwdI[kk];                       // · bwd
-                const abI = aR * bwdI[kk] + aI * bwdR[kk];
-                fr[kk] = sre[kk] * abR - sim[kk] * abI;                          // · S
-                fi[kk] = sre[kk] * abI + sim[kk] * abR;
+                const cR = cm * Pm_re[kk], cI = cm * Pm_im[kk];          // cm · A^{2m}
+                const pfR = cR * fwdR[kk] - cI * fwdI[kk];               // · fwd
+                const pfI = cR * fwdI[kk] + cI * fwdR[kk];
+                fr[kk] = sre[kk] * pfR - sim[kk] * pfI;                  // · S
+                fi[kk] = sre[kk] * pfI + sim[kk] * pfR;
               }
               for (let kk = 1; kk < half; kk++) { fr[Nfft - kk] = fr[kk]; fi[Nfft - kk] = -fi[kk]; }
               fi[0] = 0; fi[half] = 0;
               fft(fr, fi, true);
-              for (let n = Math.max(0, Math.ceil(tB / dt)); n < Nfft; n++) acc[n] += fr[n];
+              for (let n = Math.max(0, Math.ceil(tF / dt)); n < Nfft; n++) acc[n] += fr[n];
+              // backward term  S · Γl · cm · A^{2m} · A · bwd
+              if (tB <= Tdisp) {
+                for (let kk = 0; kk <= half; kk++) {
+                  const cR = Gl * cm * Pm_re[kk], cI = Gl * cm * Pm_im[kk];        // Γl · cm · A^{2m}
+                  const aR = cR * A_re[kk] - cI * A_im[kk];                        // · A
+                  const aI = cR * A_im[kk] + cI * A_re[kk];
+                  const abR = aR * bwdR[kk] - aI * bwdI[kk];                       // · bwd
+                  const abI = aR * bwdI[kk] + aI * bwdR[kk];
+                  fr[kk] = sre[kk] * abR - sim[kk] * abI;                          // · S
+                  fi[kk] = sre[kk] * abI + sim[kk] * abR;
+                }
+                for (let kk = 1; kk < half; kk++) { fr[Nfft - kk] = fr[kk]; fi[Nfft - kk] = -fi[kk]; }
+                fi[0] = 0; fi[half] = 0;
+                fft(fr, fi, true);
+                for (let n = Math.max(0, Math.ceil(tB / dt)); n < Nfft; n++) acc[n] += fr[n];
+              }
             }
             // advance to order m+1:  A^{2(m+1)} = A^{2m}·A²,  (ΓsΓl)^{m+1}
             for (let kk = 0; kk <= half; kk++) {
@@ -1118,6 +1141,25 @@
               Pm_re[kk] = r; Pm_im[kk] = im;
             }
             cm *= GsGl;
+          }
+          // Far-bounce lump: S · (fwd + Γl·A·bwd) · Σ_{m>MCAP} r^m, ONE IFFT, masked at the earliest far arrival.
+          // (fwd + Γl·A·bwd) is the same combined per-order transfer used by the forward/backward terms above;
+          // factoring the geometric remainder Rt out front collapses every far order into a single transform.
+          if (tailActive) {
+            for (let kk = 0; kk <= half; kk++) {
+              const abR = A_re[kk] * bwdR[kk] - A_im[kk] * bwdI[kk];             // A·bwd
+              const abI = A_re[kk] * bwdI[kk] + A_im[kk] * bwdR[kk];
+              const tcR = fwdR[kk] + Gl * abR;                                   // fwd + Γl·A·bwd
+              const tcI = fwdI[kk] + Gl * abI;
+              const trR = tcR * Rt_re[kk] - tcI * Rt_im[kk];                     // · Σ r^m
+              const trI = tcR * Rt_im[kk] + tcI * Rt_re[kk];
+              fr[kk] = sre[kk] * trR - sim[kk] * trI;                            // · S
+              fi[kk] = sre[kk] * trI + sim[kk] * trR;
+            }
+            for (let kk = 1; kk < half; kk++) { fr[Nfft - kk] = fr[kk]; fi[Nfft - kk] = -fi[kk]; }
+            fi[0] = 0; fi[half] = 0;
+            fft(fr, fi, true);
+            for (let n = Math.max(0, Math.ceil(tTailMask / dt)); n < Nfft; n++) acc[n] += fr[n];
           }
           for (let j = 0; j < NT; j++) {
             const tNow = (j / (NT - 1)) * Tdisp;
