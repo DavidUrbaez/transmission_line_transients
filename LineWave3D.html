@@ -1039,11 +1039,15 @@
       // so masking it at its own time removes ALL inter-bounce precursor leak at every position. CRUCIAL: at x=L
       // the paired forward_m and backward_m arrive at the SAME instant ((2m+1)τ), so their inverted-short sum
       // (Γl=−1) still cancels to V=0 — the clean flip is preserved. Only the FD model needs this (lossless/CP have
-      // a near-pure delay, no precursor) and only the partial-sum (travelling-wave) case can be enumerated by
-      // bounce; the settled closed-form (step-that-settles / switching) keeps the lighter incident+remainder
-      // split below. Cost: ~2 IFFTs per in-view bounce order (≈Tdisp/2τ of them) per column, FD only.
+      // a near-pure delay, no precursor). Within the DISPLAY window only finitely many bounces have arrived, and
+      // any arriving after Tdisp contribute nothing in-view — so the finite enumeration (bounded by the tF>Tdisp
+      // break) reproduces the field in-window for the STEP too, even when it "settles": the closed form 1/(1−r)
+      // was only needed for the asymptotic tail, which isn't displayed. We therefore route step here as well, so
+      // its bounces get the same per-arrival masking. Only the switching opposite-sign closed-form keeps the
+      // lighter incident+remainder split below (its sign-alternating tail is the one case the bounce truncation
+      // would mishandle). Cost: ~2 IFFTs per in-view bounce order (≈Tdisp/2τ of them) per column, FD only.
       const dispersive = (state === 'wideband');
-      const perBounce = dispersive && !useSettledSum;
+      const perBounce = dispersive && (!useSettledSum || isStep);
       const GsGl = Gs * Gl;
       // A² per bin (forward round-trip factor), reused across columns for the bounce powers A^{2m}
       const A2_re = perBounce ? new Float64Array(half + 1) : null;
