@@ -1,0 +1,1810 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Traveling Waves on a Transmission Line — f(x,t) Spacetime Carpet</title>
+  <style>
+    :root {
+      --bg0: #070b14;
+      --bg1: #0d1426;
+      --panel: rgba(14, 20, 38, .82);
+      --panel-b: #243154;
+      --ink: #dce6ff;
+      --ink-dim: #8fa3cc;
+      --accent: #5aa0ff;
+      --warn: #ffd166;
+      --hot: #ff7528;
+      --cold: #40c7ff;
+      --mid: #2b3450;
+      --font: ui-sans-serif, system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      --mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      height: 100%;
+      overflow: hidden;
+      background: radial-gradient(120% 120% at 70% 10%, var(--bg1), var(--bg0));
+      color: var(--ink);
+      font-family: var(--font);
+    }
+
+    #app {
+      position: fixed;
+      inset: 0;
+    }
+
+    canvas {
+      display: block;
+    }
+
+    .panel {
+      position: fixed;
+      background: var(--panel);
+      border: 1px solid var(--panel-b);
+      border-radius: 12px;
+      backdrop-filter: blur(7px);
+      box-shadow: 0 8px 30px rgba(0, 0, 0, .45);
+    }
+
+    /* HUD */
+    #hud {
+      top: 14px;
+      left: 14px;
+      padding: 13px 15px;
+      max-width: 340px;
+    }
+
+    #hud .cap {
+      font-size: 11.5px;
+      color: var(--ink-dim);
+      line-height: 1.45;
+      margin: 6px 0 9px;
+      min-height: 32px;
+    }
+
+    #hud .grid {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 2px 12px;
+      font-family: var(--mono);
+      font-size: 11.5px;
+    }
+
+    #hud .grid b {
+      color: var(--ink);
+      font-weight: 600;
+    }
+
+    #hud .grid span {
+      color: var(--ink-dim);
+    }
+
+    #hud .grid .v {
+      text-align: right;
+      color: #bcd2ff;
+    }
+
+    /* legend */
+    #legend {
+      bottom: 80px;
+      left: 14px;
+      padding: 10px 12px;
+      width: 188px;
+    }
+
+    #legend .bar {
+      height: 13px;
+      border-radius: 7px;
+      margin: 6px 0 4px;
+      background: linear-gradient(90deg, var(--cold), var(--mid) 50%, var(--hot));
+    }
+
+    #legend .lab {
+      display: flex;
+      justify-content: space-between;
+      font-family: var(--mono);
+      font-size: 10.5px;
+      color: var(--ink-dim);
+    }
+
+    #legend .ti {
+      font-size: 11px;
+      color: var(--ink);
+      margin-bottom: 2px;
+    }
+
+    /* transport */
+    #transport {
+      bottom: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      padding: 9px 14px;
+    }
+
+    #transport button {
+      border: 1px solid var(--panel-b);
+      color: var(--ink);
+      background: #16203a;
+      border-radius: 8px;
+      padding: 6px 11px;
+      font-size: 12px;
+      cursor: pointer;
+      font-family: var(--font);
+    }
+
+    #transport button:hover {
+      border-color: var(--accent);
+      color: #fff;
+    }
+
+    #transport input[type=range] {
+      width: 300px;
+      accent-color: var(--accent);
+    }
+
+    #transport .tlab {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--ink-dim);
+      min-width: 118px;
+    }
+
+    /* source-waveform preview — embedded under the "Voltage source" folder in the control panel */
+    #srcInset {
+      padding: 6px 2px 2px;
+    }
+
+    #srcInset .ti {
+      font-size: 10.5px;
+      color: var(--ink);
+      margin-bottom: 4px;
+    }
+
+    #srcInset canvas {
+      width: 100%;
+      height: auto;
+      display: block;
+      border-radius: 6px;
+      background: rgba(7, 11, 20, .5);
+    }
+
+    #srcInset .sub {
+      font-family: var(--mono);
+      font-size: 9.5px;
+      color: var(--ink-dim);
+      margin-top: 3px;
+    }
+
+    /* axis labels */
+    .axlab {
+      position: fixed;
+      font-size: 11px;
+      color: #9fb4e0;
+      font-family: var(--mono);
+      pointer-events: none;
+      text-shadow: 0 1px 4px #000;
+      transform: translate(-50%, -50%);
+      white-space: nowrap;
+    }
+
+    #axT {
+      font-size: 13px;
+      color: #cfe0ff;
+    }
+
+    /* lil-gui tweaks */
+    .lil-gui {
+      --background-color: rgba(14, 20, 38, .86);
+      --widget-color: #16203a;
+      --focus-color: #2b3c66;
+      --title-background-color: #101a30;
+      --font-size: 11.5px;
+    }
+
+    /* the key control — a prominent toggle button, bottom-centre, hard to miss */
+    #surfToggle {
+      position: fixed;
+      bottom: 80px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      cursor: pointer;
+      user-select: none;
+      padding: 10px 20px;
+      border-radius: 26px;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: .3px;
+      border: 1px solid var(--panel-b);
+      color: var(--ink-dim);
+      background: var(--panel);
+      backdrop-filter: blur(7px);
+      box-shadow: 0 8px 30px rgba(0, 0, 0, .45);
+      transition: all .18s ease;
+    }
+
+    #surfToggle:hover {
+      border-color: var(--accent);
+      color: var(--ink);
+    }
+
+    #surfToggle .dot {
+      width: 36px;
+      height: 19px;
+      border-radius: 12px;
+      background: #28324f;
+      position: relative;
+      transition: background .18s ease;
+    }
+
+    #surfToggle .dot::after {
+      content: '';
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 15px;
+      height: 15px;
+      border-radius: 50%;
+      background: #9fb3d8;
+      transition: transform .18s ease, background .18s ease;
+    }
+
+    #surfToggle.on {
+      color: #fff;
+      border-color: var(--accent);
+      background: rgba(20, 40, 75, .92);
+      box-shadow: 0 0 18px rgba(90, 160, 255, .5);
+    }
+
+    #surfToggle.on .dot {
+      background: var(--accent);
+    }
+
+    #surfToggle.on .dot::after {
+      transform: translateX(17px);
+      background: #fff;
+    }
+
+    /* ---- progressive disclosure: show dense detail only on request ---- */
+    .collapsed {
+      display: none !important;
+    }
+
+    /* HUD header: a clickable model "chip" + a small info button */
+    #hudHead {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    #hudChip {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      cursor: pointer;
+      user-select: none;
+      padding: 2px 4px;
+      margin: -2px -4px;
+      border-radius: 8px;
+    }
+
+    #hudChip:hover {
+      background: rgba(90, 160, 255, .08);
+    }
+
+    #hudChip .state {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--accent);
+    }
+
+    #hudChip .chev {
+      font-size: 10px;
+      color: var(--ink-dim);
+      transition: transform .18s ease;
+    }
+
+    #hud.open #hudChip .chev {
+      transform: rotate(90deg);
+    }
+
+    #hudDetail {
+      margin-top: 9px;
+    }
+
+    .iconbtn {
+      flex: none;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 700;
+      border: 1px solid var(--panel-b);
+      background: #16203a;
+      color: var(--ink-dim);
+      transition: all .15s ease;
+    }
+
+    .iconbtn:hover {
+      border-color: var(--accent);
+      color: #fff;
+    }
+
+    /* help / info popover */
+    #helpBackdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(2, 6, 16, .5);
+      z-index: 49;
+    }
+
+    #help {
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: min(470px, 92vw);
+      max-height: 82vh;
+      overflow: auto;
+      padding: 18px 22px 20px;
+      z-index: 50;
+    }
+
+    #help h2 {
+      margin: 0 28px 2px 0;
+      font-size: 16px;
+      color: var(--ink);
+    }
+
+    #help h3 {
+      margin: 15px 0 5px;
+      font-size: 11px;
+      letter-spacing: .5px;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+
+    #help p {
+      margin: 5px 0;
+      font-size: 12.5px;
+      line-height: 1.55;
+      color: var(--ink-dim);
+    }
+
+    #help b {
+      color: #cdddff;
+    }
+
+    #help ul {
+      margin: 5px 0;
+      padding-left: 18px;
+    }
+
+    #help li {
+      font-size: 12.5px;
+      line-height: 1.5;
+      color: var(--ink-dim);
+      margin: 4px 0;
+    }
+
+    #help .close {
+      position: absolute;
+      top: 13px;
+      right: 15px;
+      font-size: 19px;
+      cursor: pointer;
+      color: var(--ink-dim);
+      line-height: 1;
+    }
+
+    #help .close:hover {
+      color: #fff;
+    }
+
+    /* ---------------------------------------------------------------------------
+       Phone / narrow-screen layout. The WebGL canvas already tracks innerWidth/
+       innerHeight (onResize); these rules just keep the fixed overlay panels from
+       overflowing and overlapping on a small screen. Touch orbit/zoom/pan is
+       handled by OrbitControls natively. ~700px catches phones in both portrait
+       and most landscape orientations.
+       --------------------------------------------------------------------------- */
+    @media (max-width: 700px) {
+
+      /* HUD: keep it compact and clear of the control panel on the right */
+      #hud {
+        top: 8px;
+        left: 8px;
+        padding: 10px 12px;
+        max-width: 46vw;
+      }
+
+      /* lil-gui control panel: cap its height and let the folders scroll, so a
+         tall stack of sliders never runs off the bottom of the screen */
+      .lil-gui.root {
+        max-height: 62vh;
+        width: min(245px, 52vw);
+      }
+
+      .lil-gui.root>.children {
+        overflow-y: auto;
+        max-height: calc(62vh - 30px);
+        -webkit-overflow-scrolling: touch;
+      }
+
+      /* legend: a touch smaller, lifted above the surface toggle */
+      #legend {
+        width: 132px;
+        bottom: 128px;
+        left: 8px;
+        padding: 8px 10px;
+      }
+
+      /* surface toggle: sit just above the transport bar, compact */
+      #surfToggle {
+        bottom: 66px;
+        padding: 8px 16px;
+        font-size: 12px;
+        gap: 8px;
+      }
+
+      /* transport: a full-width bottom bar; the range slider flexes to fill the
+         leftover space instead of forcing a fixed 300px width */
+      #transport {
+        left: 8px;
+        right: 8px;
+        width: auto;
+        transform: none;
+        gap: 7px;
+        padding: 8px 10px;
+        justify-content: space-between;
+      }
+
+      #transport input[type=range] {
+        flex: 1 1 auto;
+        width: auto;
+        min-width: 0;
+      }
+
+      #transport .tlab {
+        flex: 0 0 auto;
+        min-width: 0;
+        font-size: 10px;
+      }
+
+      #transport button {
+        flex: 0 0 auto;
+        padding: 6px 9px;
+        font-size: 11px;
+      }
+    }
+
+    /* Very narrow phones in portrait: drop the legend (the on-surface colour is
+       self-explanatory) to free vertical room for the scene and controls. */
+    @media (max-width: 420px) {
+      #legend {
+        display: none;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div id="app"></div>
+
+  <div id="hud" class="panel">
+    <div id="hudHead">
+      <div id="hudChip" title="Show / hide model details">
+        <span class="state" id="stateName">Lossless</span>
+        <span class="chev">&#9654;</span>
+      </div>
+      <div class="iconbtn" id="helpBtn" title="What is this? How to read it">&#9432;</div>
+    </div>
+    <div id="hudDetail" class="collapsed">
+      <div class="cap" id="stateCap"></div>
+      <div class="grid">
+        <span>v (velocity)</span><b class="v" id="rv"></b>
+        <span>Z&#8320; = &#8730;(L/C)</span><b class="v" id="rz"></b>
+        <span>&#964; (travel time)</span><b class="v" id="rtau"></b>
+        <span>2&#964; (round trip)</span><b class="v" id="r2tau"></b>
+        <span>&#915; (src &middot; far)</span><b class="v" id="rgam"></b>
+        <span>peak V (far end)</span><b class="v" id="rpk"></b>
+        <span>now t</span><b class="v" id="rt"></b>
+      </div>
+    </div>
+  </div>
+
+  <div id="legend" class="panel">
+    <div class="ti">Voltage V (per-unit)</div>
+    <div class="bar"></div>
+    <div class="lab"><span id="lgmin">&#8722;2</span><span>0</span><span id="lgmax">+2</span></div>
+  </div>
+
+  <div id="srcInset" class="collapsed">
+    <div class="ti" id="srcTitle">Injected surge — 1.2/50&#181;s impulse</div>
+    <canvas id="srcCanvas" width="372" height="148"></canvas>
+    <div class="sub" id="srcSub">double-exponential</div>
+  </div>
+
+  <div id="surfToggle" title="Toggle the 3D f(x,t) surface (the wake trailing behind the line)">
+    <span class="dot"></span><span id="surfToggleLab">Show 3D surface</span>
+  </div>
+
+  <div id="transport" class="panel">
+    <button id="btnPlay">⏸ Pause</button>
+    <button id="btnReset">⟲ Reset</button>
+    <input id="scrub" type="range" min="0" max="1000" value="0" />
+    <div class="tlab" id="tlab">t = 0 &#181;s</div>
+  </div>
+
+  <div id="helpBackdrop" class="collapsed"></div>
+  <div id="help" class="panel collapsed" role="dialog" aria-label="About this visualization">
+    <span class="close" id="helpClose" title="Close (Esc)">&times;</span>
+    <h2>Traveling waves on a transmission line</h2>
+    <p><b>What am I looking at?</b> The cable bends to the instantaneous voltage profile
+      V(x, t<sub>now</sub>) as the wave sweeps along it. Turn on <b>Show 3D surface</b> to unfold the
+      full f(x,&nbsp;t) “spacetime carpet” — the wake the wave leaves trailing behind its front.</p>
+    <h3>Reading it</h3>
+    <p>A slice across <i>x</i> is the “grandstand snapshot” f(x&#8722;vt); a slice down <i>t</i>
+      is the “racetrack-crack” view f(x/v&#8722;t). Ridges are Bewley’s lattice diagonals.
+      <span id="footWarn"></span>
+    </p>
+    <h3>Things to try</h3>
+    <ul>
+      <li>Set the <b>far end</b> to <b>Open</b> and watch the reflection nearly double the voltage (Ferranti).</li>
+      <li>Toggle <b>Show 3D surface</b> to see the wake build up behind the wavefront.</li>
+      <li>Use the <b>A/B overlay</b> to compare <b>Lossless</b> against <b>Frequency-Dependent</b>.</li>
+      <li>Switch the <b>waveform</b> to a <b>Switching impulse</b> or <b>Sinusoidal</b> source.</li>
+    </ul>
+  </div>
+
+  <div class="axlab" id="axT">time</div>
+  <div class="axlab" id="axV">V — voltage (height)</div>
+  <div class="axlab" id="lblS" style="color:#bcd2ff;font-weight:600">sending end · x = 0</div>
+  <div class="axlab" id="lblL" style="color:#bcd2ff;font-weight:600">far end · x = L</div>
+
+  <script type="importmap">
+{ "imports": {
+  "three": "https://unpkg.com/three@0.184.0/build/three.module.js",
+  "three/addons/": "https://unpkg.com/three@0.184.0/examples/jsm/"
+}}
+</script>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { GUI } from 'three/addons/libs/lil-gui.module.min.js';
+    import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+    import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+    import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+    import { Line2 } from 'three/addons/lines/Line2.js';
+    import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
+    import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
+
+    /* ============================================================================
+       TRANSMISSION-LINE TRAVELING-WAVE VISUALIZER  —  f(x,t) spacetime carpet
+       ----------------------------------------------------------------------------
+       One frequency-domain engine drives FOUR model states, all via V(x,ω)=Vs(ω)·H(x,ω):
+         H(x,ω) = Σ bounces of  (Γs Γl)^n e^{-γ(2nL+x)}  +  Γl(Γs Γl)^n e^{-γ((2n+2)L - x)}
+         γ(ω)   = √((R+jωL')(G+jωC'))   — differs per state:
+            LOSSLESS       R=G=0                      → no attenuation, no distortion
+            DISTORTIONLESS R/L'=G/C' (Heaviside)      → attenuation, ZERO distortion
+            BERGERON/CP    constant R, G≈0            → attenuation, sharp front kept
+            WIDEBAND/FD    R(ω)=R·√(1+ω/ωs) (skin)    → front rounds, pulse disperses
+       Refs: Greenwood §9.1–9.6, §11.4 ; van der Sluis §3.1–3.5, §3.8, §7.2, §8.1.
+       ========================================================================== */
+
+    // ---------- vanilla iterative radix-2 FFT (in place; inverse divides by n) ----
+    function fft(re, im, inverse) {
+      const n = re.length;
+      for (let i = 1, j = 0; i < n; i++) {
+        let bit = n >> 1;
+        for (; j & bit; bit >>= 1) j ^= bit;
+        j ^= bit;
+        if (i < j) { const tr = re[i]; re[i] = re[j]; re[j] = tr; const ti = im[i]; im[i] = im[j]; im[j] = ti; }
+      }
+      for (let len = 2; len <= n; len <<= 1) {
+        const ang = (inverse ? 2 : -2) * Math.PI / len;
+        const wr = Math.cos(ang), wi = Math.sin(ang);
+        const half = len >> 1;
+        for (let i = 0; i < n; i += len) {
+          let cr = 1, ci = 0;
+          for (let k = 0; k < half; k++) {
+            const a = i + k, b = i + k + half;
+            const xr = re[b] * cr - im[b] * ci;
+            const xi = re[b] * ci + im[b] * cr;
+            re[b] = re[a] - xr; im[b] = im[a] - xi;
+            re[a] += xr; im[a] += xi;
+            const ncr = cr * wr - ci * wi; ci = cr * wi + ci * wr; cr = ncr;
+          }
+        }
+      }
+      if (inverse) { const inv = 1 / n; for (let i = 0; i < n; i++) { re[i] *= inv; im[i] *= inv; } }
+    }
+    function nextPow2(x) { let p = 1; while (p < x) p <<= 1; return p; }
+    function csqrt(ar, ai) { // principal complex sqrt
+      const r = Math.hypot(ar, ai);
+      const re = Math.sqrt(Math.max((r + ar) * 0.5, 0));
+      let im = Math.sqrt(Math.max((r - ar) * 0.5, 0));
+      if (ai < 0) im = -im;
+      return [re, im];
+    }
+
+    // ---------- parameters --------------------------------------------------------
+    const C_LIGHT = 2.99792458e8;
+    const STATES = {
+      lossless: { name: 'Lossless (ideal)', cap: 'R = G = 0. No attenuation, no distortion — the front stays vertical and the crest never fades. The conservative reference upper bound.' },
+      distortionless: { name: 'Distortionless (Heaviside)', cap: 'R/L = G/C (β=0). The wave is attenuated in amplitude but keeps its EXACT shape & sharp front — proof that attenuation ≠ distortion.' },
+      bergeron: { name: 'Bergeron / Constant-Parameter (CP)', cap: 'Constant R, L, C and a single travel time τ — the standard distributed-parameter travelling-wave line (a.k.a. the Bergeron or constant-parameter / CP model). Attenuation, but the sharp front is preserved.' },
+      wideband: { name: 'Frequency-Dependent / Wideband', cap: 'Frequency-dependent R(ω) (skin effect + earth return) — the frequency-dependent / wideband / universal-line-model (ULM) approach. High frequencies at the front are damped most, so the steep front ROUNDS and the pulse spreads. The most accurate model.' },
+    };
+
+    // Injected-voltage waveforms. `front`/`tail` give [min,max,step,default] for the GUI sliders so the
+    // ranges adapt (a switching impulse needs 250/2500 µs; lightning needs 1.2/50 µs).
+    const SOURCES = {
+      lightning: {
+        name: 'Lightning impulse (1.2/50 µs)', sub: 'double-exponential',
+        front: [0.1, 20, 0.1, 1.2], tail: [5, 120, 1, 50]
+      },
+      switching: {
+        name: 'Switching impulse (250/2500 µs)', sub: 'double-exponential, slow front',
+        front: [20, 500, 5, 250], tail: [500, 5000, 10, 2500]
+      },
+      step: {
+        name: 'Heaviside step', sub: 'held at 0, then steps at t = τ',
+        front: [1, 20, 0.1, 1.0]
+      },
+      sine: { name: 'Sinusoidal voltage', sub: 'power-frequency AC, energised at t = τ' },
+    };
+
+    const params = {
+      state: 'bergeron',
+      compare: 'off',            // off | lossless | distortionless | bergeron | wideband
+      Z0: 350,                   // surge impedance, ohm
+      vFrac: 0.97,               // velocity as fraction of c
+      lengthKm: 100,             // line length, km
+      termination: 'open',       // far end:    open | short | matched | custom
+      Zload: 1000,               // ohm, used when termination=custom
+      sourceTerm: 'short',       // SOURCE end: matched | open | short | custom  → set reflective to see source bounces
+      Zsource: 50,               // ohm, used when sourceTerm=custom
+      sourceType: 'sine',   // lightning | switching | step | sine  — injected voltage waveform
+      frontUs: 1.2,              // impulse front / step rise time (µs) — standard 1.2/50 µs lightning impulse
+      tailUs: 50.0,              // impulse tail / time-to-half (µs)
+      windowMs: 0,               // displayed time window (ms). 0 = follow the τ-based traveling-wave auto-size;
+      // >0 = explicit window (e.g. ~1 cycle to see the power-frequency sine)
+      freqHz: 50,                // sinusoidal source frequency — power frequency, 50 or 60 Hz
+      phaseDeg: 90,              // sinusoidal closing angle (°): 90° = energise at voltage peak (worst case)
+      lossLevel: 0.1,           // attenuation over one traversal (αL), dimensionless
+      dispersion: 1.0,           // FD skin-effect strength multiplier (0 → collapses onto lossless)
+      heightScale: 1.0,
+      glow: 0.4,                 // surge self-illumination (emissive) — adjustable so it isn't too shiny
+      showSurface: false,        // false = just the flexing line; true = reveal the f(x,t) surface as its wake
+      showTimeTicks: true,       // show the time-domain axis tick marks + their numeric labels (with the 3D surface)
+      bloom: true,
+      autoRotate: false,
+      play: true,
+      speed: 0.2,                // initial playback speed (slower so the long-line transit is readable)
+      wireframe: false,
+    };
+
+    // ---------- physics: build V(x,t) for a given state --------------------------
+    const NX = 200;          // positions along the line
+    const NT = 2000;         // displayed time rows. The surge ridge runs diagonally across (x,t), so the
+    // time/depth axis needs many rows to tessellate that steep ridge smoothly.
+    // Affordable because the mesh is built ONCE per recompute (rebuildCarpets) and
+    // the animation only grows the draw range — writeCarpet/computeVertexNormals
+    // do NOT run per frame. See animate().
+    const NB = 9;            // reflection bounces summed
+    let SIM = {};            // current geometry-independent sim numbers (dt, Nfft, T_disp, τ …)
+
+    function lineConstants() {
+      const v = params.vFrac * C_LIGHT;            // m/s
+      const Lm = params.lengthKm * 1000;           // m
+      const Lp = params.Z0 / v;                    // H/m   (L' = Z0/v)
+      const Cp = 1 / (params.Z0 * v);              // F/m   (C' = 1/(Z0 v))
+      const tau = Lm / v;                          // s
+      // R' from desired attenuation αL = lossLevel, with α ≈ R'/(2 Z0):
+      const Rp = (params.lossLevel * 2 * params.Z0) / Lm;   // ohm/m
+      return { v, Lm, Lp, Cp, tau, Rp };
+    }
+
+    function gammaAt(state, omega, k) {
+      // returns [alpha, beta] = Re/Im of γ(ω)
+      const { v, Lp, Cp, Rp } = k;
+      if (state === 'lossless') return [0, omega / v];
+      if (state === 'distortionless') {
+        // Heaviside R/L=G/C → γ = α + jω/v with CONSTANT α (zero dispersion).
+        // α set to match Bergeron's front attenuation so the contrast isolates SHAPE, not amount.
+        return [params.lossLevel / k.Lm, omega / v];
+      }
+      if (state === 'bergeron') {
+        const a = Rp, b = omega * Lp, c = 0, d = omega * Cp; // G≈0
+        return csqrt(a * c - b * d, a * d + b * c);
+      }
+      // wideband: skin effect R(ω)=R·√(1+ω/ωs), small internal-L reduction
+      const fs = 1.0e4;                              // skin-effect knee (Hz)
+      const ws = 2 * Math.PI * fs;
+      const skin = Math.sqrt(1 + (omega / ws));
+      const Reff = Rp * (1 + params.dispersion * (skin - 1));   // dispersion=0 → Reff=R
+      const Leff = Lp * (1 - 0.04 * params.dispersion * (1 - 1 / skin));
+      const a = Reff, b = omega * Leff, c = 0, d = omega * Cp;
+      return csqrt(a * c - b * d, a * d + b * c);
+    }
+
+    function reflectionCoeff() {
+      if (params.termination === 'open') return 1;
+      if (params.termination === 'short') return -1;
+      if (params.termination === 'matched') return 0;
+      return (params.Zload - params.Z0) / (params.Zload + params.Z0);
+    }
+    function sourceReflCoeff() {
+      if (params.sourceTerm === 'open') return 1;
+      if (params.sourceTerm === 'short') return -1;
+      if (params.sourceTerm === 'custom') return (params.Zsource - params.Z0) / (params.Zsource + params.Z0);
+      return 0; // matched
+    }
+
+    // Injected voltage source, sampled at dt over Nfft points. Peak amplitude ≈ 1.0 for every type so the
+    // far-end response is read in per-unit of the injected crest. Four waveforms:
+    //   lightning / switching : double-exponential exp(-a t) − exp(-b t)  (peak-normalised)
+    //   step                  : finite-rise Heaviside, held at 0 until tStart then a smootherstep rise to 1
+    //   sine                  : sin(ω(t−tStart) + φ), held at 0 until tStart  (φ = closing angle)
+    // step & sine are delayed by tStart (= one travel time τ) so the line is seen at rest before energisation.
+    function makeSource(dt, Nfft, tStart) {
+      const s = new Float64Array(Nfft);
+      const t0 = tStart || 0;
+      // The step plateau and the continuous sine never decay on their own. Left as-is they would wrap around
+      // the periodic FFT and smear the line's steady state back across the pre-onset interval. A smooth
+      // turn-off (cosine taper) far PAST the viewing window but before the FFT period ends returns the source
+      // to zero, so the response is causal: a genuine rest interval precedes the onset (for any line that
+      // rings down within Tsim — i.e. every lossy model, and the matched-source case even when lossless).
+      const Tsim = Nfft * dt, t1 = 0.38 * Tsim, t2 = 0.60 * Tsim;
+      const env = (t) => t <= t1 ? 1 : (t >= t2 ? 0 : 0.5 * (1 + Math.cos(Math.PI * (t - t1) / (t2 - t1))));
+      if (params.sourceType === 'sine') {
+        // Sine gated on with a C²-smooth smootherstep onset (not an exponential — its slope corner rings).
+        // The rise must span several FFT samples: the sine's dt is coarse (Nfft has to cover ~7 power-freq
+        // cycles), so a sub-dt onset is an unresolved discontinuity → Gibbs ripple, worst at φ=90° where the
+        // wave starts at full amplitude. Floor the rise to 8 dt so it always spans ≥8 samples.
+        const w = 2 * Math.PI * params.freqHz, ph = params.phaseDeg * Math.PI / 180;
+        const trise = Math.max(1e-6, 8 * dt);
+        for (let n = 0; n < Nfft; n++) {
+          const t = n * dt;
+          if (t < t0) { s[n] = 0; continue; }
+          const x = Math.min(1, (t - t0) / trise);
+          const gate = x * x * x * (x * (x * 6 - 15) + 10);    // smootherstep: 6x⁵ − 15x⁴ + 10x³  (C² at both ends)
+          s[n] = env(t) * gate * Math.sin(w * (t - t0) + ph);
+        }
+        return s;                                    // unit-amplitude across the viewing window
+      }
+      if (params.sourceType === 'step') {
+        // Finite-rise Heaviside over the rise time `trise` (= frontUs), shaped by a LOGISTIC sigmoid
+        // σ(x)=1/(1+e^{−k(x−½)}) in place of the quintic smootherstep. The steepness k is auto-derived from the
+        // rise-time slider — a fast (short) rise → crisp central S, a slow (long) rise → gentle ramp — so the
+        // edge "softness" tracks the rise time without a separate control. The logistic is NORMALISED so it hits
+        // EXACTLY 0 at x=0 and 1 at x=1 (value-continuous, no DC step at the window ends), and k is CLAMPED to a
+        // band whose residual endpoint slope is tiny (flat tails) so the wavefront stays spectrally clean: a
+        // softer (smaller-k) logistic flattens toward a linear ramp that CORNERS at the edges → Gibbs ringing,
+        // exactly what we avoid. (Smootherstep was C² at both ends; this clamped logistic is only near-C¹, but
+        // with the ≥8-sample rise floor below the residual corner is sub-resolution, so the front stays clean.)
+        const trise = Math.max(params.frontUs * 1e-6, 8 * dt);
+        const K_SHARP = 18, K_SOFT = 10, F_MIN = 1, F_MAX = 20;   // F_* = step rise-time slider range (µs); k-band kept clean
+        const r = Math.min(1, Math.max(0, (params.frontUs - F_MIN) / (F_MAX - F_MIN)));
+        const kSig = K_SHARP - r * (K_SHARP - K_SOFT);            // short rise → sharp; long rise → soft
+        const g0 = 1 / (1 + Math.exp(kSig * 0.5)), gspan = 1 - 2 * g0;   // endpoint value & normaliser (g1 = 1 − g0)
+        for (let n = 0; n < Nfft; n++) {
+          const t = n * dt;
+          if (t < t0) { s[n] = 0; continue; }
+          const x = Math.min(1, (t - t0) / trise);
+          const g = 1 / (1 + Math.exp(-kSig * (x - 0.5)));
+          const rise = (g - g0) / gspan;                         // normalised logistic: exactly 0 at x=0, 1 at x=1
+          s[n] = env(t) * rise;
+        }
+        return s;                                    // plateau ≈ 1 across the viewing window
+      }
+      // lightning & switching impulses share the double-exponential shape
+      const a = 0.69 / (params.tailUs * 1e-6);       // tail rate (≈ half-value at tailUs)
+      const b = 2.0 / (params.frontUs * 1e-6);      // front rate
+      let peak = 0;
+      for (let n = 0; n < Nfft; n++) {
+        const t = n * dt;
+        const val = Math.exp(-a * t) - Math.exp(-b * t);
+        s[n] = val; if (val > peak) peak = val;
+      }
+      if (peak > 0) for (let n = 0; n < Nfft; n++) s[n] /= peak;
+      return s;
+    }
+
+    const cache = new Map();
+    function paramSig(state) {
+      return [state, params.Z0, params.vFrac, params.lengthKm, params.termination, params.Zload,
+        params.sourceTerm, params.Zsource, params.sourceType, params.frontUs, params.tailUs, params.freqHz,
+        params.phaseDeg, params.windowMs, params.lossLevel, params.dispersion].join('|');
+    }
+
+    function buildState(state) {
+      const sig = paramSig(state);
+      if (cache.has(sig)) return cache.get(sig);
+
+      const k = lineConstants();
+      const tau = k.tau;
+      const srcRefl = (sourceReflCoeff() !== 0);
+      const isSine = (params.sourceType === 'sine');
+      const isStep = (params.sourceType === 'step');
+      const tStart = (isSine || isStep) ? tau : 0;   // step & sine energise after one travel time
+      // Simulated span. Impulses settle within a few τ. The step never decays and the sine runs forever, so
+      // they're padded out (Tsim must comfortably exceed the display window or the FFT's periodic wrap-around
+      // would fold a spurious pre-event into the view); the sine additionally needs ≥2 periods to resolve its
+      // lowest frequency bin (1/Tsim).
+      let simSpan = (srcRefl ? 6.5 : 3.2) * tau;
+      // step & sine: Tsim must dwarf the viewing window so the source's turn-off taper (and the line's
+      // ring-down) sits far beyond what's shown — leaving a clean rest interval at the start of the window.
+      // Grow Tsim with the requested display window so the window drives Tdisp exactly (the slider runs out
+      // to 50τ). The source turn-off taper (≈0.38·Tsim) always sits beyond what's shown.
+      const reqWin = params.windowMs > 0 ? params.windowMs * 1e-3 : 0;
+      if (isStep) simSpan = Math.max(simSpan, 40 * tau, reqWin / 0.34);   // step: keep view clear of the taper
+      // Impulses: fit the window below TdispMax AND give the double-exponential tail room to decay before the
+      // periodic FFT wraps. The switching tail is slow (half-value at tailUs=2500 µs); truncating it while it's
+      // still a few % of peak folds a step into the period → Gibbs ringing that doesn't depend on line loss.
+      // 10·tailUs leaves the residual ~0.1 % (≈e^-6.9), below the noise floor — the ringing vanishes.
+      else if (!isSine) simSpan = Math.max(simSpan, reqWin / 0.95, 10 * params.tailUs * 1e-6);
+      // sine spans ~7 cycles so a 2-cycle viewing window still sits well below the turn-off taper / ring-down.
+      if (isSine) simSpan = Math.max(simSpan, 40 * tau, 7.0 / params.freqHz);
+      // dt resolves the surge front (~8 samples across frontUs); for the sine it resolves the period AND the
+      // line travel time (~40 samples per τ) so the wavefront stays smooth. The lower bound caps the transform
+      // at NFFT_MAX so very long lines / low frequencies don't blow up Nfft. The sine gets a larger cap so the
+      // 2-cycle power-frequency window (≈40 ms at 50 Hz) fits while dt still resolves τ for correct reflections.
+      const NFFT_MAX = isSine ? 16384 : 65536;
+      const dtTarget = isSine ? Math.min((1 / params.freqHz) / 24, tau / 40) : (params.frontUs * 1e-6) / 8;
+      const dt = Math.max(dtTarget, simSpan / NFFT_MAX);
+      const Nfft = Math.min(NFFT_MAX, Math.max(1024, nextPow2(Math.ceil(simSpan / dt))));
+      const Tsim = Nfft * dt;
+      // Displayed window. The τ-based auto size shows the wave-travel event (incident + reflections): ~2.8τ
+      // matched source, ~6τ reflective. The user can override it (params.windowMs) to widen out to ~1 power-
+      // frequency cycle so the sine becomes readable — at the cost of the fast wavefront compressing toward
+      // the start (genuine physics: the line is electrically SHORT at 50/60 Hz). TdispMax keeps sine/step
+      // views below the source turn-off taper (t1=0.38·Tsim) so the source never appears to die mid-view.
+      let TdispAuto = Math.min(Tsim * 0.98, (srcRefl ? 6.0 : 2.8) * tau);
+      if (tStart > 0) TdispAuto = Math.min(Tsim * 0.98, TdispAuto + tStart);
+      const TdispMax = (isSine || isStep) ? 0.36 * Tsim : Tsim * 0.98;
+      const TdispTravel = Math.min(TdispAuto, TdispMax);   // the τ-based traveling-wave window (playback reference)
+      let Tdisp = params.windowMs > 0
+        ? Math.max(0.05e-3, Math.min(params.windowMs * 1e-3, TdispMax))
+        : TdispTravel;
+
+      // Only sum reflection bounces that actually ARRIVE inside the simulated window. A bounce whose
+      // delay exceeds Tsim would wrap around the periodic FFT and show up as a spurious "early reflection".
+      // Bounce n's latest contribution arrives at ≈(2n+2)τ; keep it only if that + the surge tail < Tsim.
+      // Reflection bounces to sum. We only need the ones that ARRIVE inside the displayed window — later
+      // bounces are off-screen. Capping the count to the view also keeps the line's impulse response short,
+      // so the (causal, tapered) source convolves cleanly without wrapping around the FFT period. The result
+      // is exactly 0 V across x before the onset, for EVERY source type and line model — the line starts at
+      // rest. NBdWrap is the hard ceiling that guarantees no wrap even if the view were enlarged.
+      const effTail = (isSine || isStep) ? 0 : params.tailUs * 1e-6;
+      const NBdView = Math.ceil((Tdisp + effTail) / (2 * tau)) + 3;                     // bounces seen in window
+      const NBdWrap = Math.max(0, Math.floor((Tsim - effTail - 2 * tau) / (2 * tau)));    // no-wrap ceiling
+      const NBd = Math.max(0, Math.min(NBdView, NBdWrap));
+
+      // source spectrum
+      const sre = Float64Array.from(makeSource(dt, Nfft, tStart));
+      const sim = new Float64Array(Nfft);
+      fft(sre, sim, false);
+
+      // per-bin γ, then step = e^{-γ dx}
+      const half = Nfft >> 1;
+      const dx = k.Lm / (NX - 1);
+      const Gl = reflectionCoeff();
+      const Gs = sourceReflCoeff();
+
+      // Loss floor for the closed-form 1/(1−r) bounce sum (selected in useSettledSum below). Applied the
+      // PHYSICAL way — on α, so it flows through `step`→A into BOTH the bounce numerator AND Gsum, preserving the
+      // pole–zero cancellation a bare denominator floor would break. Two singular cases, both at |Γs·Γl|≈1:
+      //   • STEP, same-sign reflective ends (Γs·Γl→+1, e.g. both short / both open): the DC bin has
+      //     α(DC)=√(R·G)≈0 for the usual G≈0 line (CP & FD), so A(DC)→1 ⇒ r=Γs·Γl·A²→+1 ⇒ 1−r→0. The `settles`
+      //     test below scans only the RESONANCE band (NOT DC), so it correctly routes a lossy CP/FD line to the
+      //     closed form yet never sees this DC pole — 1/(1−r)=0/0=NaN at kk=0, which then contaminates every
+      //     position (this is the αL>~0.05 CP/FD blow-up). The floor keeps A(DC)<1 ⇒ 1−r≠0 ⇒ finite.
+      //   • Opposite-sign SWITCHING (Γs·Γl→−1): the quarter-wave pole r→+1 (A²→−1), even on a lossless line.
+      // Lossless STEP is intentionally NOT floored: it has α=0 at every frequency, never `settles`, and is routed
+      // to the partial sum — flooring it would add ~1 % spurious loss per traversal and dull the ideal, never-
+      // fading reference. The floor only ever bites bins where natural α<alFloor (the near-DC region for CP/FD);
+      // at the resonances natural α already exceeds it, so `settles` and the travelling-wave content are
+      // unchanged. 0.01 Np one-way ⇒ resonance Q≈50, ~1 % decay over a traversal — invisible beside any real loss.
+      const reflective = Math.abs(Gs * Gl) > 0.999;
+      const alFloor = (reflective &&
+        ((isStep && state !== 'lossless') || (params.sourceType === 'switching' && Gs * Gl < 0)))
+        ? 0.01 / k.Lm : 0;
+
+      const stepRe = new Float64Array(half + 1), stepIm = new Float64Array(half + 1);
+      for (let kk = 0; kk <= half; kk++) {
+        const omega = 2 * Math.PI * kk / Tsim;
+        let [al, be] = gammaAt(state, omega, k);
+        if (al < alFloor) al = alFloor;          // regularizes the DC (step) / quarter-wave (switching) pole; alFloor=0 otherwise
+        const m = Math.exp(-al * dx);
+        stepRe[kk] = m * Math.cos(be * dx);
+        stepIm[kk] = -m * Math.sin(be * dx);
+      }
+      // cumulative powers step^i  (i = 0..NX-1)
+      const powRe = [], powIm = [];
+      {
+        let cr = new Float64Array(half + 1), ci = new Float64Array(half + 1);
+        for (let kk = 0; kk <= half; kk++) { cr[kk] = 1; ci[kk] = 0; }
+        powRe.push(cr.slice()); powIm.push(ci.slice());
+        for (let i = 1; i < NX; i++) {
+          const nr = new Float64Array(half + 1), ni = new Float64Array(half + 1);
+          for (let kk = 0; kk <= half; kk++) {
+            nr[kk] = cr[kk] * stepRe[kk] - ci[kk] * stepIm[kk];
+            ni[kk] = cr[kk] * stepIm[kk] + ci[kk] * stepRe[kk];
+          }
+          powRe.push(nr); powIm.push(ni); cr = nr; ci = ni;
+        }
+      }
+      const A_re = powRe[NX - 1], A_im = powIm[NX - 1];          // e^{-γL}, the one-way propagation factor
+
+      // geometric bounce factor  Gsum = Σ (Γs Γl A²)ⁿ,  r = Γs Γl A². Two evaluations; choosing right is what
+      // makes BOTH the lossy and the lossless resonator come out correct:
+      //  • Closed form 1/(1−r) — the FULLY-SETTLED standing wave (∞ bounces). Valid ONLY if the ring decays
+      //    inside the FFT period Tsim; otherwise the undecayed tail folds back through the periodic transform
+      //    (wrap-around) → spurious overshoot + oscillation (the lossless both-shorted step hit exactly this:
+      //    a phantom 2 V that the true response — bounded in [0,1] — never reaches).
+      //  • Causal partial sum Σ_{0}^{NBd} rⁿ — a clean truncated bounce train (the bounces that have ARRIVED).
+      //    Finite for ANY r (even lossless r→±1, where it = NBd+1), no wrap; it only omits the settled tail.
+      // Decision is loss-aware: ρ is the worst-case round-trip amplitude of the RINGING modes (computed below —
+      // at the standing-wave resonances, NOT at DC), and ρ^NBdWrap is the ring still left at the wrap horizon.
+      // `settles` ⇔ that residual < EPS_SETTLE — then the closed form is wrap-safe AND well-conditioned at the
+      // resonances (|1−r| bounded away from 0 ⇒ no pole, no floor, no Dmin). When it does NOT settle (the
+      // lossless line is the canonical case, ρ=1) we use the partial sum — exactly the "bouncing back and forth"
+      // picture: undamped images at 2nT, bounded in [0,1], truncation pushed off-screen.
+      //  • Step (sustained): closed form IF it settles, else partial sum.
+      //  • Switching (decaying pulse): closed form for opposite-sign ends (Γs·Γl<0 ⇒ stable r→−1 at DC, vs the
+      //    partial sum Σ(−1)ⁿ that flips with NBd's parity); same-sign ends use the bounded partial sum.
+      //  • Lightning & sine: ALWAYS the partial sum — distinct, time-separated bounces are the physics.
+      const EPS_SETTLE = 0.05;
+      // ρ must measure the decay of the RINGING modes (standing-wave resonances), NOT the DC/settled component.
+      // A line with negligible shunt loss (G≈0 — the usual case for CP and FD) has α(DC)=√(RG)≈0, so |A| at DC
+      // is ≈1 however strongly it attenuates at higher frequencies. Taking max|A|² over ALL bins is then pinned
+      // at that DC bin → ρ≈1 → every line looks "non-settling" and is wrongly sent to the partial sum (lossless
+      // looks right, but lossy CP/FD lose their settled divider, and raising R never helps — it doesn't move
+      // α(DC)). Fix: scan only the resonance band, k ≥ the fundamental half-wave mode βL=π — the first bin where
+      // Im(A) crosses up through 0 (arg(A)=−βL ⇒ A_im=−|A|sin(βL) is <0 for 0<βL<π and ≥0 at βL=π). Its least-
+      // damped (lowest) mode sets the worst-case round-trip factor.
+      let kRes = -1;
+      for (let kk = 1; kk <= half; kk++) {
+        if (A_im[kk] >= 0) { kRes = kk; break; }       // βL has reached π → fundamental standing-wave resonance
+      }
+      let maxA2 = 0;
+      if (kRes >= 0) {
+        for (let kk = kRes; kk <= half; kk++) {
+          const a2 = A_re[kk] * A_re[kk] + A_im[kk] * A_im[kk];
+          if (a2 > maxA2) maxA2 = a2;
+        }
+      }
+      // kRes<0 ⇒ line too short for even the fundamental resonance to fit the band: no ring to wrap, so the
+      // closed form is trivially safe (maxA2 stays 0 ⇒ ρ=0 ⇒ settles).
+      const rho = Math.abs(Gs * Gl) * maxA2;                          // worst-case round-trip amplitude at the resonances
+      const settles = Math.pow(rho, Math.max(1, NBdWrap)) < EPS_SETTLE;
+      const useSettledSum = (isStep && settles) || (params.sourceType === 'switching' && Gs * Gl < 0);
+      const GsumRe = new Float64Array(half + 1), GsumIm = new Float64Array(half + 1);
+
+	  for (let kk = 0; kk <= half; kk++) {
+        const a2r = A_re[kk] * A_re[kk] - A_im[kk] * A_im[kk];
+        const a2i = 2 * A_re[kk] * A_im[kk];
+        const rr = Gs * Gl * a2r, ri = Gs * Gl * a2i;
+        if (useSettledSum) {
+          // Exact closed form 1/(1−r). Reached only when `settles` holds (or on the floored opposite-sign
+          // switching branch), so |1−r| ≥ 1−ρ > 0 — no denominator floor, no Dmin. 1/(1−r) = (1−r)*/|1−r|² with
+          // 1−r = dr + i·di, and Im{1/(1−r)} = −di/|1−r|² = ri (since di = −ri).
+          const dr = 1 - rr, di = -ri;                 // 1 − r
+          const D = dr * dr + di * di ;
+          GsumRe[kk] = dr / D; GsumIm[kk] = ri / D;
+        } else {
+          let termR = 1, termI = 0, sumR = 0, sumI = 0;
+          for (let n = 0; n <= NBd; n++) {
+            sumR += termR; sumI += termI;
+            const tr = termR * rr - termI * ri, ti = termR * ri + termI * rr;
+            termR = tr; termI = ti;
+          }
+          GsumRe[kk] = sumR; GsumIm[kk] = sumI;
+        }
+      }
+
+      const V = new Float32Array(NT * NX);
+      let vmaxAbs = 1e-6, peakFar = 0;
+      const fr = new Float64Array(Nfft), fi = new Float64Array(Nfft);
+
+      // Split-and-mask for the dispersive (FD) model. The full field at x is the incident first transit PLUS
+      // everything that has reflected (load reflection + source bounces). The reflected content is carried by
+      // e^{−γ·(2L−x)}, whose phase β(ω) is strongly NONLINEAR in FD — so its inverse transform is NOT a clean
+      // delayed pulse but a dispersed kernel whose precursor leaks back to the onset, showing up as the negative
+      // undershoot at x=0,t=tStart (acausal: nothing can return before the reflection has travelled 2L−x). We
+      // reconstruct the incident part (S·fwd, exact) and the reflected/bounce remainder SEPARATELY, and zero the
+      // remainder before its causal arrival tStart+(2L−x)/v. CRUCIAL: both parts use the SAME nominal velocity v,
+      // so the incident mask tStart+x/v and the reflection mask tStart+(2L−x)/v COINCIDE exactly at x=L — there
+      // the incident and its inverted reflection (Γl=−1 short) must cancel to V=0, and masking them at different
+      // times would break that cancellation, leaving spurious magnitude at the reflecting end instead of a clean
+      // flip. (The small fast FD precursor between (2L−x)/v∞ and (2L−x)/v is clipped — the same approximation the
+      // incident already makes at its own nominal arrival — a fair price for an exact boundary condition.) In
+      // lossless/distortionless/CP the reflected term is already a (near-)pure delay e^{−jω·2τ}, causal on its
+      // own, so the split is a no-op and the original single-IFFT path is kept untouched.
+      const dispersive = (state === 'wideband');
+      const fr2 = dispersive ? new Float64Array(Nfft) : null;
+      const fi2 = dispersive ? new Float64Array(Nfft) : null;
+
+      for (let i = 0; i < NX; i++) {
+        // Causality: a disturbance launched at the source (x=0, time tStart) cannot reach position x before
+        // t = tStart + x/v. The line is provably at rest until then, so any value the FFT places there (Gibbs
+        // pre-ringing on a sharp front, or periodic wrap-around) is spurious and is masked to exactly 0. This
+        // guarantees a 0 V initial state across x for every source type and line model.
+        const tArr = tStart + (i / (NX - 1)) * tau;
+        // Earliest a reflected/bounce contribution can reach x: the load reflection, having travelled (2L−x) at
+        // velocity v. All higher bounces arrive later, so this single bound gates the whole remainder. Same v as
+        // the incident mask above ⇒ the two coincide at x=L, keeping the short-circuit cancellation exact.
+        const tReflArr = tStart + (2 - i / (NX - 1)) * tau;
+        const fwdR = powRe[i], fwdI = powIm[i];          // step^i
+        const bwdR = powRe[NX - 1 - i], bwdI = powIm[NX - 1 - i];     // step^(NX-1-i)
+        // build full spectrum F[k] = S[k] * T[k]  (k=0..half), Hermitian mirror after. When dispersive, also build
+        // the incident-only spectrum S·fwd in (fr2,fi2); the reflected remainder is then (full − incident).
+        for (let kk = 0; kk <= half; kk++) {
+          // backFactor = Γl * A * bwd
+          const abR = A_re[kk] * bwdR[kk] - A_im[kk] * bwdI[kk];
+          const abI = A_re[kk] * bwdI[kk] + A_im[kk] * bwdR[kk];
+          let Tr = fwdR[kk] + Gl * abR;
+          let Ti = fwdI[kk] + Gl * abI;
+          // × geometric bounce sum
+          const tr = Tr * GsumRe[kk] - Ti * GsumIm[kk];
+          const ti = Tr * GsumIm[kk] + Ti * GsumRe[kk];
+          Tr = tr; Ti = ti;
+          // × source spectrum
+          fr[kk] = sre[kk] * Tr - sim[kk] * Ti;
+          fi[kk] = sre[kk] * Ti + sim[kk] * Tr;
+          if (dispersive) {
+            // incident-only: S · fwd  (the very first transit; its IFFT is exact, no reflection mixed in)
+            fr2[kk] = sre[kk] * fwdR[kk] - sim[kk] * fwdI[kk];
+            fi2[kk] = sre[kk] * fwdI[kk] + sim[kk] * fwdR[kk];
+          }
+        }
+        // Hermitian symmetry
+        for (let kk = 1; kk < half; kk++) { fr[Nfft - kk] = fr[kk]; fi[Nfft - kk] = -fi[kk]; }
+        fi[0] = 0; fi[half] = 0;
+        fft(fr, fi, true);                                       // → time domain (real)
+        if (dispersive) {
+          for (let kk = 1; kk < half; kk++) { fr2[Nfft - kk] = fr2[kk]; fi2[Nfft - kk] = -fi2[kk]; }
+          fi2[0] = 0; fi2[half] = 0;
+          fft(fr2, fi2, true);                                   // incident-only, time domain
+        }
+        // Sample NT display rows over [0, Tdisp] by linear interpolation between the two fine samples
+        // bracketing each row's time — smooth whether the display grid is finer or coarser than dt.
+        for (let j = 0; j < NT; j++) {
+          const tNow = (j / (NT - 1)) * Tdisp;
+          const tf = tNow / dt;
+          const i0 = Math.min(Nfft - 2, Math.max(0, Math.floor(tf)));
+          let val;
+          if (dispersive) {
+            // incident (masked at its own arrival) + reflected remainder (masked at the reflection's arrival)
+            const incNow = fr2[i0] + (fr2[i0 + 1] - fr2[i0]) * (tf - i0);
+            const fullNow = fr[i0] + (fr[i0 + 1] - fr[i0]) * (tf - i0);
+            val = 0;
+            if (tNow >= tArr) val += incNow;                     // incident first transit
+            if (tNow >= tReflArr) val += (fullNow - incNow);     // reflections + bounces, no acausal precursor
+          } else {
+            val = (tNow < tArr) ? 0 : fr[i0] + (fr[i0 + 1] - fr[i0]) * (tf - i0);
+          }
+          V[j * NX + i] = val;
+          const av = Math.abs(val); if (av > vmaxAbs) vmaxAbs = av;
+          if (i === NX - 1 && val > peakFar) peakFar = val;
+        }
+      }
+
+      const out = { V, vmaxAbs, peakFar, tau, Tdisp, TdispTravel, dt, Nfft };
+      cache.set(sig, out);
+      return out;
+    }
+
+    // ============================================================================
+    //  RENDERING
+    // ============================================================================
+    const WX = 22, WZ = 22;             // world span of carpet (x and time)
+    const TIME_AXIS_X = WX / 2 + 4.5;       // x-offset of the time ruler, off to the +x side
+    let renderer, scene, camera, controls, composer, bloomPass;
+    let carpetA, carpetB, wireA, surfaceGroup, grid, timeAxis, timeTicksMesh;   // primary + compare meshes + sliding wake group + V=0 grid + tick-marked time axis (timeTicksMesh = the tick LineSegments)
+    let timeTickEls = []; const TIME_TICK_Z = [];   // DOM axlab labels for the time ruler + their local-z anchors
+    let posA, colA, posB, colB;
+    let gui;
+
+    // Dark-theme diverging map: zero level is DARK (so flat line stays unlit), polarity glows
+    // — cool cyan/blue for negative, warm orange/red for positive. Bloom then lights only the ridges.
+    const COLD = [0.25, 0.78, 1.0], MIDC = [0.10, 0.13, 0.22], HOT = [1.0, 0.46, 0.16], FUT = [0.055, 0.075, 0.14];
+    const scratch = new THREE.Color();
+
+    function divergeColor(s, out, o) { // s in [-1,1]
+      let a = Math.abs(s);
+      if (a < 0.015) { out[o] = MIDC[0]; out[o + 1] = MIDC[1]; out[o + 2] = MIDC[2]; return; } // dead-zone: flat stays dark
+      const t = Math.min(a, 1); const e = Math.pow(t, 0.85);
+      let r, g, b;
+      if (s < 0) { r = MIDC[0] + (COLD[0] - MIDC[0]) * e; g = MIDC[1] + (COLD[1] - MIDC[1]) * e; b = MIDC[2] + (COLD[2] - MIDC[2]) * e; }
+      else { r = MIDC[0] + (HOT[0] - MIDC[0]) * e; g = MIDC[1] + (HOT[1] - MIDC[1]) * e; b = MIDC[2] + (HOT[2] - MIDC[2]) * e; }
+      out[o] = r; out[o + 1] = g; out[o + 2] = b;
+    }
+
+    // Paint the legend bar from divergeColor itself, so the colour key EXACTLY matches the surface mapping
+    // (same dark-navy zero, same warm/cool ends, same γ=0.85 saturation) instead of an approximate CSS
+    // gradient. Sampled left→right as s = −1 … +1 (i.e. −vRef … +vRef, matching the lgmin/0/lgmax labels).
+    function buildLegendBar() {
+      const bar = document.querySelector('#legend .bar');
+      if (!bar) return;
+      const tmp = new Float32Array(3), stops = [], N = 32, gl = params.glow;
+      for (let i = 0; i <= N; i++) {
+        const s = -1 + 2 * i / N;
+        divergeColor(s, tmp, 0);
+        // Emulate the carpet's surge-glow (shader adds vColor·uEmiss to the emissive radiance) so the key
+        // brightens with the slider and keeps matching the rendered surface; clamp to 1 like the display.
+        const r = Math.round(Math.min(1, tmp[0] * (1 + gl)) * 255),
+              g = Math.round(Math.min(1, tmp[1] * (1 + gl)) * 255),
+              b = Math.round(Math.min(1, tmp[2] * (1 + gl)) * 255);
+        stops.push(`rgb(${r},${g},${b}) ${(100 * i / N).toFixed(1)}%`);
+      }
+      bar.style.background = `linear-gradient(90deg, ${stops.join(',')})`;
+    }
+
+    function makeCarpet() {
+      const geo = new THREE.PlaneGeometry(WX, WZ, NX - 1, NT - 1);
+      geo.rotateX(-Math.PI / 2);
+      const col = new Float32Array(NX * NT * 3).fill(0.9);
+      geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+      const mat = new THREE.MeshStandardMaterial({
+        vertexColors: true, side: THREE.DoubleSide, roughness: 0.5, metalness: 0.04, flatShading: false
+      });
+      // Self-illuminate each vertex by its OWN colour, so the surge stays visible from any angle —
+      // crucial for the negative troughs (which face downward and would otherwise sit in shadow).
+      mat.onBeforeCompile = (sh) => {
+        sh.uniforms.uEmiss = { value: params.glow };
+        mat.userData.sh = sh;
+        sh.fragmentShader = 'uniform float uEmiss;\n' + sh.fragmentShader.replace(
+          '#include <emissivemap_fragment>',
+          '#include <emissivemap_fragment>\n  totalEmissiveRadiance += vColor.rgb * uEmiss;');
+      };
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.castShadow = false; mesh.receiveShadow = true;
+      return mesh;
+    }
+
+    // ---------- the physical line: a STRAIGHT conductor baseline + a separate voltage curve riding on it ----
+    // The conductor stays straight at y=0,z=COND_Z (the cable at rest). The voltage V(x,t_now) is drawn as a
+    // separate glowing curve above (warm) / below (cool) it — the f(x,t) surface trails behind as a wake.
+    const COND_Z = 0;
+    let lineGroup, waveLine, waveGeo, waveMat, endNodeS, endNodeL;
+    const _cpos = new Float32Array(NX * 3), _ccol = new Float32Array(NX * 3);
+    function termColor(t) { return t === 'open' ? 0xffb020 : t === 'short' ? 0x3a7bff : t === 'matched' ? 0x32d27a : 0xb070ff; }
+    function heightScaleNow() { return (Hworld / vRef) * params.heightScale; }
+    function buildLineProp() {
+      lineGroup = new THREE.Group();
+      const halfX = WX / 2;
+      // straight conductor baseline (solid metallic cable at rest)
+      const condGeo = new THREE.CylinderGeometry(0.07, 0.07, WX, 14); condGeo.rotateZ(Math.PI / 2);
+      const cond = new THREE.Mesh(condGeo, new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0x1c2a4a, emissiveIntensity: 0.5, roughness: 0.35, metalness: 0.85 }));
+      cond.position.set(0, 0, COND_Z); lineGroup.add(cond);
+      // separate voltage curve riding above/below the baseline (dark at V≈0, so only the surge shows)
+      waveGeo = new LineGeometry();
+      for (let i = 0; i < NX; i++) { _cpos[i * 3] = (i / (NX - 1)) * WX - halfX; _cpos[i * 3 + 1] = 0; _cpos[i * 3 + 2] = COND_Z; _ccol[i * 3] = MIDC[0]; _ccol[i * 3 + 1] = MIDC[1]; _ccol[i * 3 + 2] = MIDC[2]; }
+      waveGeo.setPositions(_cpos); waveGeo.setColors(_ccol);
+      waveMat = new LineMaterial({ linewidth: 4.5, vertexColors: true, worldUnits: false, transparent: false });
+      waveMat.resolution.set(innerWidth, innerHeight);
+      waveLine = new Line2(waveGeo, waveMat); waveLine.computeLineDistances(); waveLine.renderOrder = 2;
+      lineGroup.add(waveLine);
+      // short ground posts (static reference that this is an overhead line)
+      const nT = 5, postMat = new THREE.MeshStandardMaterial({ color: 0x46598c, roughness: 0.9, metalness: 0.1 });
+      for (let i = 0; i < nT; i++) {
+        const x = -halfX + (i / (nT - 1)) * WX;
+        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.07, 1.6, 8), postMat); post.position.set(x, -0.8, COND_Z); lineGroup.add(post);
+      }
+      // end terminals (colour-coded by termination) — fixed on the baseline cable ends
+      const ndGeo = new THREE.SphereGeometry(0.32, 20, 16);
+      endNodeS = new THREE.Mesh(ndGeo, new THREE.MeshStandardMaterial({ roughness: 0.4, metalness: 0.3 })); endNodeS.position.set(-halfX, 0, COND_Z);
+      endNodeL = new THREE.Mesh(ndGeo, new THREE.MeshStandardMaterial({ roughness: 0.4, metalness: 0.3 })); endNodeL.position.set(+halfX, 0, COND_Z);
+      endNodeS.renderOrder = 3; endNodeL.renderOrder = 3;
+      lineGroup.add(endNodeS, endNodeL);
+      scene.add(lineGroup);
+      updateEndMarkers();
+    }
+    function updateEndMarkers() {
+      if (!endNodeS) return;
+      const cs = termColor(params.sourceTerm), cl = termColor(params.termination);
+      endNodeS.material.color.setHex(cs); endNodeS.material.emissive.setHex(cs); endNodeS.material.emissiveIntensity = 0.6;
+      endNodeL.material.color.setHex(cl); endNodeL.material.emissive.setHex(cl); endNodeL.material.emissiveIntensity = 0.6;
+    }
+    // draw the voltage curve at the instantaneous profile V(x, t_now) — row `jNow` of the current data.
+    function updateConductor(data, jNow) {
+      if (!waveGeo) return;
+      const V = data.V, hs = heightScaleNow(), halfX = WX / 2;
+      for (let i = 0; i < NX; i++) {
+        const val = V[jNow * NX + i];
+        _cpos[i * 3] = (i / (NX - 1)) * WX - halfX; _cpos[i * 3 + 1] = val * hs; _cpos[i * 3 + 2] = COND_Z;
+        divergeColor(val / vRef, _ccol, i * 3);
+      }
+      waveGeo.setPositions(_cpos); waveGeo.setColors(_ccol);
+    }
+
+    // V=0 reference grid restricted to the cable's x-span (x=0 → x=L) and the carpet's z-depth.
+    function makeFloorGrid() {
+      const x0 = -WX / 2, x1 = WX / 2, z0 = -WZ / 2, z1 = WZ / 2;   // x: sending end → far end ; z: carpet depth
+      const nx = 28, nz = 28;
+      const pts = [];
+      for (let i = 0; i <= nx; i++) { const x = x0 + (x1 - x0) * i / nx; pts.push(x, 0, z0, x, 0, z1); }
+      for (let j = 0; j <= nz; j++) { const z = z0 + (z1 - z0) * j / nz; pts.push(x0, 0, z, x1, 0, z); }
+      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+      const m = new THREE.LineBasicMaterial({ color: 0x283455, transparent: true, opacity: 0.6, depthWrite: false });
+      return new THREE.LineSegments(g, m);
+    }
+
+    // Time axis: the 3D ArrowHelper (points toward +z = increasing time) PLUS evenly spaced tick marks,
+    // kept in ONE group with a shared transform so the arrow and ticks stay perfectly coplanar. The group
+    // lives in the V=0 plane (y=0, same as the grid) and spans the grid's full time/z extent (±WZ/2), and
+    // it is slid in z each frame to track the V=0 grid / wake — so the ruler stays glued to the grid edge.
+    // Even spacing in z is even spacing in time (the grid depth WZ ↔ the displayed window Tdisp); labels
+    // run 0 µs at the base (−z) up to Tdisp at the arrowhead (+z), filled per-frame from the live Tdisp.
+    const TIME_AXIS_LEN = WZ;
+    // Update the DOM tick label text to match the current displayed time window.
+    function updateTimeTickLabels(Tdisp) {
+      const perZ = Tdisp / WZ;                                 // SECONDS per world-z unit (grid depth WZ ↔ Tdisp)
+      const useMs = Tdisp >= 1e-3;                           // window ≥ 1 ms → label the ticks in ms, not big µs numbers
+      for (let i = 0; i < timeTickEls.length; i++) {
+        const ts = (TIME_TICK_Z[i] + WZ / 2) * perZ;               // this tick's time, in seconds
+        timeTickEls[i].textContent = useMs ? `${(ts * 1e3).toFixed(2)} ms` : `${(ts * 1e6).toFixed(0)} µs`;
+      }
+    }
+    function makeTimeAxis() {
+      const g = new THREE.Group();
+      const z0 = -WZ / 2, col = 0x6f8cd0;                     // base in the grid's −z edge; brightened grid tone
+      const arrow = new THREE.ArrowHelper(new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, z0), WZ, col, 1.7, 0.9);
+      arrow.line.material.linewidth = 2; g.add(arrow);
+      const nT = 8, tick = 0.7, pts = [], tickEnd = WZ / 2 - 1.9;   // last tick sits clear of the arrowhead
+      for (let i = 0; i <= nT; i++) {
+        const z = z0 + (i / nT) * (tickEnd - z0); pts.push(-tick, 0, z, tick, 0, z);
+        TIME_TICK_Z.push(z);                                // LOCAL z — world z added via the group slide
+        const el = document.createElement('div');
+        el.className = 'axlab';
+        el.style.color = '#bcd2ff'; el.style.fontWeight = '600'; el.style.display = 'none';
+        document.body.appendChild(el); timeTickEls.push(el);
+      }
+      const tg = new THREE.BufferGeometry(); tg.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+      timeTicksMesh = new THREE.LineSegments(tg, new THREE.LineBasicMaterial({ color: col, transparent: true, opacity: 0.9 }));
+      g.add(timeTicksMesh);
+      return g;
+    }
+
+    function init() {
+      const app = document.getElementById('app');
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.setSize(innerWidth, innerHeight);
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.05;
+      renderer.shadowMap.enabled = false;   // surge floats on a translucent V=0 plane — no ground to cast onto
+      app.appendChild(renderer.domElement);
+
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x070b14);
+      scene.fog = new THREE.Fog(0x070b14, 46, 96);
+
+      camera = new THREE.PerspectiveCamera(48, innerWidth / innerHeight, 0.1, 400);
+      // initial view favours the sending end 
+      camera.position.set(-20, 16, 26);
+
+      controls = new OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true; controls.dampingFactor = 0.08;
+      controls.target.set(0, 0.8, -3);   // line sits at z=0; the wake trails to z<0
+      controls.maxPolarAngle = Math.PI * 0.62;   // allow a little below the horizon to inspect the negative trough
+
+      // lights
+      scene.add(new THREE.AmbientLight(0x556699, 0.6));
+      const key = new THREE.DirectionalLight(0xdde8ff, 1.5);
+      key.position.set(18, 26, 14); scene.add(key);
+      const rim = new THREE.DirectionalLight(0x4a6cff, 0.5); rim.position.set(-16, 10, -18); scene.add(rim);
+      const under = new THREE.DirectionalLight(0x2a4d8c, 0.35); under.position.set(0, -18, 6); scene.add(under); // lifts the undersides of negative troughs
+
+      // V = 0 reference = grid lines only (no solid/translucent floor — the surge rises above the grid
+      // and dips below it, with nothing to clip into or muddy the view).
+      // x-extent spans exactly the cable (x = 0 → x = L, world −WX/2 → +WX/2); z-extent matches the
+      // carpet depth so it reads as the carpet's floor and scrolls in z with the wake when shown.
+      grid = makeFloorGrid();
+      grid.position.y = 0; scene.add(grid);
+
+      // time axis indicator off to the RIGHT — a plain line with evenly spaced ticks (no arrowhead).
+      // +z is the direction of INCREASING time (oldest history sits at −z/into depth, the newest slice
+      // is at the cable). Only shown with the 3D surface, and slid in z each frame to track the wake.
+      timeAxis = makeTimeAxis();
+      timeAxis.visible = params.showSurface; scene.add(timeAxis);
+
+      // carpets live in a group that SLIDES along the time axis so the newest slice stays at the line
+      surfaceGroup = new THREE.Group(); scene.add(surfaceGroup);
+      carpetA = makeCarpet(); surfaceGroup.add(carpetA);
+      posA = carpetA.geometry.attributes.position.array; colA = carpetA.geometry.attributes.color.array;
+      wireA = new THREE.Mesh(carpetA.geometry, new THREE.MeshBasicMaterial({ color: 0x9fc0ff, wireframe: true, transparent: true, opacity: 0.10 }));
+      wireA.visible = params.wireframe; surfaceGroup.add(wireA);
+
+      carpetB = makeCarpet(); carpetB.material.transparent = true; carpetB.material.opacity = 0.42;
+      carpetB.material.roughness = 0.8; carpetB.visible = false; surfaceGroup.add(carpetB);
+      posB = carpetB.geometry.attributes.position.array; colB = carpetB.geometry.attributes.color.array;
+      surfaceGroup.visible = params.showSurface;
+
+      buildLineProp();   // the flexing conductor (always shown) = the physical cable
+
+      // postprocessing (bloom for glowing ridges)
+      composer = new EffectComposer(renderer);
+      composer.addPass(new RenderPass(scene, camera));
+      bloomPass = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.7, 0.5, 0.38);
+      composer.addPass(bloomPass);
+
+      buildGUI();
+      buildLegendBar();
+      window.addEventListener('resize', onResize);
+      setupTransport();
+      setupDisclosure();
+      recompute();
+    }
+
+    function onResize() {
+      camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
+      renderer.setSize(innerWidth, innerHeight); composer.setSize(innerWidth, innerHeight);
+      if (waveMat) waveMat.resolution.set(innerWidth, innerHeight);
+    }
+
+    // ---------- write a state's V into a carpet's buffers up to revealRow ---------
+    let dataA = null, dataB = null;
+    const Hworld = 6.0;     // world height for V = vRef
+    let vRef = 2.0;
+
+    function writeCarpet(data, pos, col, revealRow) {
+      const V = data.V;
+      const hscale = (Hworld / vRef) * params.heightScale;
+      for (let j = 0; j < NT; j++) {
+        const revealed = j <= revealRow;
+        for (let i = 0; i < NX; i++) {
+          const o = (j * NX + i);
+          const val = revealed ? V[o] : 0;
+          pos[o * 3 + 1] = val * hscale;
+          if (revealed) {
+            divergeColor(val / vRef, col, o * 3);
+            if (j === revealRow) { col[o * 3] = Math.min(1, col[o * 3] + 0.25); col[o * 3 + 1] = Math.min(1, col[o * 3 + 1] + 0.25); col[o * 3 + 2] = Math.min(1, col[o * 3 + 2] + 0.25); }
+          } else { col[o * 3] = FUT[0]; col[o * 3 + 1] = FUT[1]; col[o * 3 + 2] = FUT[2]; }
+        }
+      }
+    }
+
+    // Build the FULL surface (all rows) + normals ONCE per data/height change. Passing revealRow=NT
+    // reveals every row (no FUT colouring, no leading-edge highlight — that's applied per-frame by
+    // setRowHighlight). This is the heavy step (writeCarpet + computeVertexNormals over NX·NT verts);
+    // keeping it out of the animation loop is what lets NT be large enough for a smooth ridge.
+    function rebuildCarpets() {
+      if (!dataA) return;
+      writeCarpet(dataA, posA, colA, NT);
+      carpetA.geometry.attributes.position.needsUpdate = true;
+      carpetA.geometry.attributes.color.needsUpdate = true;
+      carpetA.geometry.computeVertexNormals();
+      if (dataB) {
+        writeCarpet(dataB, posB, colB, NT);
+        carpetB.geometry.attributes.position.needsUpdate = true;
+        carpetB.geometry.attributes.color.needsUpdate = true;
+        carpetB.geometry.computeVertexNormals();
+      }
+    }
+
+    // Move the bright "current time" cue from row `prev` to row `row` — O(NX) per frame: restore prev's
+    // base colour (recomputed from V) and brighten the new leading row.
+    function setRowHighlight(data, col, geo, row, prev) {
+      const V = data.V;
+      if (prev >= 0 && prev < NT) { for (let i = 0; i < NX; i++) { const o = (prev * NX + i) * 3; divergeColor(V[prev * NX + i] / vRef, col, o); } }
+      if (row >= 0 && row < NT) { for (let i = 0; i < NX; i++) { const o = (row * NX + i) * 3; col[o] = Math.min(1, col[o] + 0.25); col[o + 1] = Math.min(1, col[o + 1] + 0.25); col[o + 2] = Math.min(1, col[o + 2] + 0.25); } }
+      geo.attributes.color.needsUpdate = true;
+    }
+
+    // ---------- (re)compute physics & refresh HUD --------------------------------
+    function recompute() {
+      dataA = buildState(params.state);
+      dataB = (params.compare !== 'off' && params.compare !== params.state) ? buildState(params.compare) : null;
+      vRef = Math.max(2.0, dataA.vmaxAbs * 1.02, dataB ? dataB.vmaxAbs * 1.02 : 0);
+      carpetB.visible = !!dataB;
+      _carpetsDirty = true;   // data changed → rebuild the full mesh on the next frame
+      updateTimeTickLabels(dataA.Tdisp);   // refresh the time-ruler tick legends for the new window
+      updateEndMarkers();
+      updateHUD();
+      drawSourceInset();
+      // emissive intensity follows whether bloom on
+      carpetA.material.emissiveIntensity = params.bloom ? 0.0 : 0.0;
+    }
+
+    // Debounced recompute. Slider onChange fires continuously while dragging, and buildState now runs
+    // larger FFTs on long lines (finer dt to resolve the front). Coalesce rapid changes so the surface
+    // rebuilds ~once the drag pauses, keeping the interaction fluid. Discrete dropdowns still call
+    // recompute() directly for an instant response.
+    let _recomputeTimer = null;
+    function recomputeSoon(delay = 110) {
+      if (_recomputeTimer) clearTimeout(_recomputeTimer);
+      _recomputeTimer = setTimeout(() => { _recomputeTimer = null; recompute(); }, delay);
+    }
+
+    function updateHUD() {
+      const k = lineConstants();
+      document.getElementById('stateName').textContent = STATES[params.state].name;
+      document.getElementById('stateCap').textContent = STATES[params.state].cap;
+      const vMm = (k.v / 1e6).toFixed(0);
+      document.getElementById('rv').textContent = `${vMm} m/µs  (${params.vFrac.toFixed(2)} c)`;
+      document.getElementById('rz').textContent = `${params.Z0.toFixed(0)} Ω`;
+      document.getElementById('rtau').textContent = `${(k.tau * 1e6).toFixed(1)} µs`;
+      document.getElementById('r2tau').textContent = `${(2 * k.tau * 1e6).toFixed(1)} µs`;
+      const gl = reflectionCoeff(), gs = sourceReflCoeff();
+      document.getElementById('rgam').textContent = `${gs >= 0 ? '+' : ''}${gs.toFixed(0)} src · ${gl >= 0 ? '+' : ''}${gl.toFixed(2)} far`;
+      document.getElementById('rpk').textContent = `${dataA.peakFar.toFixed(2)} pu`;
+      document.getElementById('lblL').textContent = `far end · x = L = ${params.lengthKm} km`;
+      document.getElementById('lgmin').textContent = `−${vRef.toFixed(1)}`;
+      document.getElementById('lgmax').textContent = `+${vRef.toFixed(1)}`;
+      const fw = document.getElementById('footWarn');
+      fw.innerHTML = (params.state === 'wideband')
+        ? ' <b>FD front-rounding</b> is the linear skin/earth effect; nonlinear corona (not modelled) clips fronts even more.'
+        : '';
+    }
+
+    // ---------- source inset ------------------------------------------------------
+    function drawSourceInset() {
+      const cv = document.getElementById('srcCanvas'); const g = cv.getContext('2d');
+      const W = cv.width, H = cv.height; g.clearRect(0, 0, W, H);
+      const type = params.sourceType, N = 240, ys = new Array(N);
+      let Tmax, label, refs;
+      if (type === 'sine') {
+        const w = 2 * Math.PI * params.freqHz, ph = params.phaseDeg * Math.PI / 180; Tmax = 2 / params.freqHz;
+        for (let i = 0; i < N; i++) ys[i] = Math.sin(w * (i / (N - 1) * Tmax) + ph);
+        label = `${params.freqHz} Hz · φ = ${params.phaseDeg}°`; refs = [-1, 1];
+      } else if (type === 'step') {
+        const lead = 0.25; Tmax = 1;
+        for (let i = 0; i < N; i++) { const tp = (i / (N - 1)) - lead; ys[i] = tp < 0 ? 0 : 1; }
+        label = `held at 0 → unit step (rise ${params.frontUs.toFixed(2)} µs)`; refs = [0.5, 1.0];
+      } else {
+        const a = 0.69 / (params.tailUs * 1e-6), b = 2.0 / (params.frontUs * 1e-6); Tmax = params.tailUs * 3.2e-6;
+        for (let i = 0; i < N; i++) { const t = i / (N - 1) * Tmax; ys[i] = Math.exp(-a * t) - Math.exp(-b * t); }
+        label = `front ${params.frontUs.toFixed(params.frontUs < 10 ? 1 : 0)} µs · tail ${params.tailUs.toFixed(0)} µs`; refs = [0.3, 0.9, 1.0];
+      }
+      // peak-normalise the (positive) impulse/step so the preview always fills the box
+      if (type !== 'sine') { let pk = 0; for (const v of ys) if (v > pk) pk = v; if (pk > 0) for (let i = 0; i < N; i++) ys[i] /= pk; }
+      // vertical mapping spanning the data range (includes the sine's negative half)
+      let vmin = Math.min(0, ...ys), vmax = Math.max(...ys); if (vmax - vmin < 1e-6) vmax = vmin + 1;
+      const yTop = 10, yBot = H - 16, Hp = yBot - yTop;
+      const mapY = v => yBot - ((v - vmin) / (vmax - vmin)) * Hp;
+      // zero axis
+      g.strokeStyle = '#223255'; g.lineWidth = 1; g.beginPath(); g.moveTo(6, mapY(0)); g.lineTo(W - 4, mapY(0)); g.stroke();
+      // reference markers
+      g.strokeStyle = '#33446e'; g.setLineDash([3, 3]);
+      refs.forEach(fr => { const y = mapY(fr); g.beginPath(); g.moveTo(6, y); g.lineTo(W - 4, y); g.stroke(); });
+      g.setLineDash([]);
+      // curve
+      g.strokeStyle = '#ffce5a'; g.lineWidth = 2; g.beginPath();
+      for (let i = 0; i < N; i++) { const x = 6 + (i / (N - 1)) * (W - 12); const y = mapY(ys[i]); if (i === 0) g.moveTo(x, y); else g.lineTo(x, y); }
+      g.stroke();
+      document.getElementById('srcTitle').textContent = 'Injected source — ' + SOURCES[type].name;
+      document.getElementById('srcSub').textContent = label;
+    }
+
+    // ---------- GUI ---------------------------------------------------------------
+    function buildGUI() {
+      gui = new GUI({ title: 'Line model & controls' });
+      let dispCtrl;                       // FD-only dispersion slider (created below, in the Line folder)
+      // The FD-dispersion multiplier only feeds the wideband (FD) branch of gammaAt — lossless, distortionless
+      // and Bergeron/CP never read it — so it lives with the line parameters and is shown only for the FD model.
+      const syncModelCtrls = () => { if (dispCtrl) dispCtrl.show(params.state === 'wideband'); };
+      const fm = gui.addFolder('Model');
+      fm.add(params, 'state', { 'Lossless (ideal)': 'lossless', 'Distortionless (Heaviside)': 'distortionless', 'Bergeron / Constant-Parameter (CP)': 'bergeron', 'Frequency-Dependent / Wideband': 'wideband' }).name('Model state').onChange(() => { resetReveal(); syncModelCtrls(); recompute(); });
+      fm.add(params, 'compare', { 'off': 'off', 'Lossless': 'lossless', 'Distortionless': 'distortionless', 'Bergeron / CP': 'bergeron', 'Frequency-Dependent / Wideband': 'wideband' }).name('A/B overlay').onChange(recompute);
+
+      // ---- Voltage source: choose the injected waveform; the parameter sliders below adapt to the type ----
+      const fsrc = gui.addFolder('Voltage source');
+      fsrc.add(params, 'sourceType', { 'Lightning impulse (1.2/50 µs)': 'lightning', 'Switching impulse (250/2500 µs)': 'switching', 'Heaviside step': 'step', 'Sinusoidal voltage': 'sine' })
+        .name('Waveform')
+        .onChange(() => {
+          invalidate(); resetReveal(); syncSourceCtrls(true); drawSourceInset();
+          syncWindowCtrl(true); recompute();
+        });   // retune window range/default for the new source, then rebuild
+      const frontCtrl = fsrc.add(params, 'frontUs', 0.1, 20, 0.1).name('Front time (µs)').onChange(() => { invalidate(); drawSourceInset(); syncWindowCtrl(false); recomputeSoon(); });
+      const tailCtrl = fsrc.add(params, 'tailUs', 5, 120, 1).name('Tail time (µs)').onChange(() => { invalidate(); drawSourceInset(); syncWindowCtrl(false); recomputeSoon(); });
+      const freqCtrl = fsrc.add(params, 'freqHz', { '50 Hz': 50, '60 Hz': 60 }).name('Frequency').onChange(() => { invalidate(); drawSourceInset(); recomputeSoon(); });
+      const phaseCtrl = fsrc.add(params, 'phaseDeg', 0, 360, 5).name('Closing angle φ (°)').onChange(() => { invalidate(); drawSourceInset(); recomputeSoon(); });
+      // Adapt the per-type controls: ranges & defaults come from SOURCES, and only the relevant ones are shown.
+      // The sine runs at power frequency (50/60 Hz). Because τ ≪ one cycle, the line is electrically short, so
+      // the closing angle φ sets the (near-constant) voltage the line is energised into — φ = 90° = peak.
+      let travelBtn, powerBtn;   // Time-window preset buttons — only meaningful (and shown) for the sine
+      function syncSourceCtrls(applyDefaults) {
+        const t = params.sourceType, d = SOURCES[t];
+        const isImpulse = (t === 'lightning' || t === 'switching'), isStep = (t === 'step'), isSine = (t === 'sine');
+        if (d.front) { frontCtrl.min(d.front[0]).max(d.front[1]).step(d.front[2]); if (applyDefaults) params.frontUs = d.front[3]; }
+        if (d.tail) { tailCtrl.min(d.tail[0]).max(d.tail[1]).step(d.tail[2]); if (applyDefaults) params.tailUs = d.tail[3]; }
+        frontCtrl.name(isStep ? 'Rise time (µs)' : 'Front time (µs)').show(isImpulse || isStep).updateDisplay();
+        tailCtrl.show(isImpulse).updateDisplay();
+        freqCtrl.show(isSine).updateDisplay();
+        phaseCtrl.show(isSine).updateDisplay();
+        if (travelBtn) { travelBtn.show(isSine); powerBtn.show(isSine); }
+      }
+      syncSourceCtrls(false);
+
+      // ---- Time window: how much physics time the carpet shows. Auto (traveling-wave) is τ-based; widen it
+      //      to ~1 cycle to read the power-frequency sine. Widening compresses the fast wavefront toward the
+      //      start — genuine physics, the line is electrically SHORT at 50/60 Hz. buildState clamps the value
+      //      below the source turn-off taper so the source never appears to die mid-view.
+      function autoWindowMs(mode) {
+        const k = lineConstants(), tau = k.tau, srcRefl = (sourceReflCoeff() !== 0);
+        const tStart = (params.sourceType === 'sine' || params.sourceType === 'step') ? tau : 0;
+        if (mode === 'power') {
+          const w = (params.sourceType === 'sine') ? (2.0 / params.freqHz + tStart)       // two full cycles + onset
+            : ((srcRefl ? 6.0 : 2.8) * 4 * tau + tStart); // wider multi-reflection
+          return w * 1e3;
+        }
+        return ((srcRefl ? 6.0 : 2.8) * tau + tStart) * 1e3;   // 'travel'
+      }
+      const ftw = gui.addFolder('Time window');
+      const windowCtrl = ftw.add(params, 'windowMs', 0.1, 50, 0.05).name('maximum simulation time (ms)').decimals(2)
+        .onChange(() => { invalidate(); recomputeSoon(); });
+      function applyWindowPreset(mode) { params.windowMs = autoWindowMs(mode); windowCtrl.updateDisplay(); invalidate(); recompute(); }
+      // Lightning & step: the window is a multiple of the travel time τ — the slider runs 2τ → 10τ (in ms),
+      // defaulting to 7τ. Switching has its own front/tail-based range (below) and the sine keeps the wide ms
+      // range so a full power-frequency cycle fits. Moving the slider drives Tdisp (buildState grows Tsim to fit).
+      function syncWindowCtrl(setDefault) {
+        const ms = lineConstants().tau * 1e3;
+        if (params.sourceType === 'sine') {
+          windowCtrl.min(0.1).max(50).step(0.05);
+          if (setDefault) params.windowMs = autoWindowMs('power');
+        } else if (params.sourceType === 'switching') {
+          // Switching impulse: cap the window (max) at 3.1× (front + tail) so the slow 250/2500 µs wave fits with
+          // no dead space; default to 1.5× (front + tail) — enough to show the crest and early tail at first glance.
+          const span = (params.frontUs + params.tailUs) / 1000;                  // front+tail, µs → ms
+          const lo = 2 * ms, hi = Math.max(lo + 0.01, 3.1 * span);
+          const def = Math.min(hi, Math.max(lo, 1.5 * span));
+          windowCtrl.min(lo).max(hi).step(0.01);
+          params.windowMs = setDefault ? def : Math.min(Math.max(params.windowMs, lo), hi);
+        } else {
+          windowCtrl.min(2 * ms).max(50 * ms).step(0.01);
+          params.windowMs = setDefault ? 7 * ms : Math.min(Math.max(params.windowMs, 2 * ms), 50 * ms);
+        }
+        windowCtrl.updateDisplay();
+      }
+      travelBtn = ftw.add({ p: () => applyWindowPreset('travel') }, 'p').name('▶ traveling-wave dynamics');
+      powerBtn = ftw.add({ p: () => applyWindowPreset('power') }, 'p').name('〜 power-frequency dynamics');
+      const _isSine = params.sourceType === 'sine'; travelBtn.show(_isSine); powerBtn.show(_isSine);  // sine-only
+      syncWindowCtrl(true);   // seed the slider range & default (init recomputes)
+
+      const ft = gui.addFolder('Terminations & source');
+      const srcCtrl = ft.add(params, 'sourceTerm', { 'Short / busbar (Γ=−1, reflects)': 'short', 'Open (Γ=+1, reflects)': 'open', 'Matched (Γ=0, absorbs)': 'matched', 'Custom Z_source': 'custom' }).name('Source end (x=0)');
+      const zsrcCtrl = ft.add(params, 'Zsource', 1, 4000, 1).name('Z_source (Ω, custom)').onChange(() => { invalidate(); recomputeSoon(); });
+      const farCtrl = ft.add(params, 'termination', { 'Open (Γ=+1, Ferranti doubling)': 'open', 'Short (Γ=−1, V cancels)': 'short', 'Matched (Γ=0, absorbed)': 'matched', 'Custom Z_load': 'custom' }).name('Far end (x=L)');
+      const zloadCtrl = ft.add(params, 'Zload', 1, 4000, 1).name('Z_load (Ω, custom)').onChange(() => { invalidate(); recomputeSoon(); });
+      // each end's custom-Z slider is visible only when that end is set to "custom"
+      function syncTermCtrls() { zsrcCtrl.show(params.sourceTerm === 'custom'); zloadCtrl.show(params.termination === 'custom'); }
+      srcCtrl.onChange(() => { invalidate(); resetReveal(); recompute(); syncTermCtrls(); });
+      farCtrl.onChange(() => { invalidate(); resetReveal(); recompute(); syncTermCtrls(); });
+      syncTermCtrls();
+
+      const fl = gui.addFolder('Line');
+      fl.add(params, 'Z0', 150, 500, 1).name('Z₀ = √(L/C) (Ω)').onChange(() => { invalidate(); recomputeSoon(); });
+      fl.add(params, 'vFrac', 0.6, 0.99, 0.01).name('velocity (× c)').onChange(() => { invalidate(); syncWindowCtrl(false); recomputeSoon(); });
+      fl.add(params, 'lengthKm', 5, 100, 1).name('length (km)').onChange(() => { invalidate(); syncWindowCtrl(false); recomputeSoon(); });
+      fl.add(params, 'lossLevel', 0, 0.3, 0.01).name('attenuation (αL)').onChange(() => { invalidate(); recomputeSoon(); });
+      dispCtrl = fl.add(params, 'dispersion', 0, 2, 0.05).name('FD dispersion ×').onChange(() => { invalidate(); recomputeSoon(); });
+      syncModelCtrls();   // FD dispersion slider: shown only when the FD/wideband model is selected
+
+      const fv = gui.addFolder('View');
+      fv.add(params, 'speed', 0.01, 0.6, 0.005).name('play speed ×');
+      fv.add(params, 'heightScale', 0.3, 2.5, 0.05).name('height ×').onChange(() => { _carpetsDirty = true; });
+      fv.add(params, 'glow', 0, 1.0, 0.02).name('surge glow').onChange(applyGlow);
+      fv.add(params, 'wireframe').name('ridge wireframe').onChange(v => { wireA.visible = v; });
+      fv.add(params, 'showTimeTicks').name('time-axis ticks');
+      fv.add(params, 'autoRotate').name('auto-rotate');
+      fv.add({ preset: () => camPreset('time') }, 'preset').name('▶ look down time (velocity)');
+      fv.add({ preset: () => camPreset('across') }, 'preset').name('▶ look across (attenuation)');
+      fv.add({ preset: () => camPreset('hero') }, 'preset').name('▶ hero view');
+
+      // Mount the source-waveform preview inside the "Voltage source" folder, beneath its controls,
+      // so the picture of the injected surge sits right next to the parameters that shape it.
+      const srcInsetEl = document.getElementById('srcInset');
+      fsrc.$children.appendChild(srcInsetEl);
+      srcInsetEl.classList.remove('collapsed');
+
+      // Default open: the two folders the user works with most. The rest start collapsed so the panel
+      // still reads as a few tidy headings rather than a wall of sliders.
+      [fm, ftw, fl, fv].forEach(f => f.close());
+      fsrc.open(); ft.open();
+    }
+    function invalidate() { cache.clear(); }
+    function applyGlow() { [carpetA, carpetB].forEach(c => { const sh = c.material.userData.sh; if (sh) sh.uniforms.uEmiss.value = params.glow; }); buildLegendBar(); }
+
+    function camPreset(which) {
+      const tgt = new THREE.Vector3(0, 0.8, -3);
+      let p;
+      if (which === 'time') p = new THREE.Vector3(0, 9, 30);
+      else if (which === 'across') p = new THREE.Vector3(30, 9, 0);
+      else p = new THREE.Vector3(-20, 16, 26);
+      animateCam(p, tgt);
+    }
+    let camAnim = null;
+    function animateCam(toPos, toTgt) { camAnim = { fromP: camera.position.clone(), toP: toPos, fromT: controls.target.clone(), toT: toTgt, t: 0 }; }
+
+    // ---------- transport / reveal animation -------------------------------------
+    let revealRow = NT - 1, revealF = NT - 1; // float reveal position
+    // _carpetsDirty: the full mesh needs rebuilding (data or height-scale changed, or surface re-shown).
+    // _hlRow: which row currently carries the bright leading-edge cue. See animate().
+    let _carpetsDirty = true, _hlRow = -1;
+    function resetReveal() { revealF = 0; }
+    function setupTransport() {
+      const play = document.getElementById('btnPlay'), reset = document.getElementById('btnReset'), scrub = document.getElementById('scrub');
+      play.onclick = () => { params.play = !params.play; play.textContent = params.play ? '⏸ Pause' : '▶ Play'; };
+      reset.onclick = () => { resetReveal(); params.play = true; play.textContent = '⏸ Pause'; };
+      scrub.oninput = () => { params.play = false; play.textContent = '▶ Play'; revealF = (scrub.value / 1000) * (NT - 1); };
+      window.__scrub = scrub;
+
+      // prominent 3D-surface toggle (bottom-centre)
+      const surfBtn = document.getElementById('surfToggle'), surfLab = document.getElementById('surfToggleLab');
+      function syncSurfBtn() {
+        surfBtn.classList.toggle('on', params.showSurface);
+        surfLab.textContent = params.showSurface ? 'Hide 3D surface' : 'Show 3D surface';
+      }
+      surfBtn.onclick = () => { params.showSurface = !params.showSurface; _carpetsDirty = true; syncSurfBtn(); };
+      syncSurfBtn();
+    }
+
+    // ---------- progressive disclosure: reveal dense panels only on request ----------
+    // Same idea as #surfToggle above: toggle a .collapsed class. Default screen stays calm
+    // (3D scene + transport + surface toggle + legend + a slim model chip); the model readout,
+    // the source waveform, and the reading guide are one click away.
+    function setupDisclosure() {
+      // (1) HUD model chip → expand/collapse the model description + the 7-row physics readout
+      const hud = document.getElementById('hud'), chip = document.getElementById('hudChip'),
+        detail = document.getElementById('hudDetail');
+      chip.onclick = () => { const nowCollapsed = detail.classList.toggle('collapsed'); hud.classList.toggle('open', !nowCollapsed); };
+
+      // (2) help / info popover — what am I looking at, how to read it, things to try
+      const help = document.getElementById('help'), backdrop = document.getElementById('helpBackdrop'),
+        helpBtn = document.getElementById('helpBtn'), helpClose = document.getElementById('helpClose');
+      function showHelp(v) { help.classList.toggle('collapsed', !v); backdrop.classList.toggle('collapsed', !v); }
+      helpBtn.onclick = () => showHelp(true);
+      helpClose.onclick = () => showHelp(false);
+      backdrop.onclick = () => showHelp(false);
+      window.addEventListener('keydown', e => { if (e.key === 'Escape') showHelp(false); });
+    }
+
+    // ---------- main loop ---------------------------------------------------------
+    const clock = new THREE.Clock();
+    function animate() {
+      const dt = Math.min(clock.getDelta(), 0.05);
+      if (params.play) {
+        // Advance by PHYSICAL time so the wavefront crosses the line at the same visual speed in every
+        // window. Without this, playback sweeps a fixed rows/sec, so widening to the power-frequency
+        // window (~40 ms vs the ~2 ms traveling-wave window) races the wave by ~20×. The scale is the
+        // travel-window's share of the current window: 1 for the travel view (unchanged feel), <1 when
+        // wider. It's clamped to 0.25 so very wide windows still loop in a sane wall-time (≈4× the travel
+        // sweep) instead of crawling for minutes — a smooth pace without "crazy fast".
+        const scale = dataA ? Math.max(0.25, Math.min(1, dataA.TdispTravel / dataA.Tdisp)) : 1;
+        revealF += dt * params.speed * NT * 0.32 * scale; if (revealF > NT - 1 + 18) { revealF = 0; }
+      }
+      revealRow = Math.min(NT - 1, Math.floor(revealF));
+
+      // (1) the conductor ALWAYS flexes to the current instantaneous profile V(x, t_now)
+      updateConductor(dataA, revealRow);
+
+      // (2) the f(x,t) surface is optional. When shown it SLIDES so its leading edge (newest slice)
+      //     stays locked on the line at z=0, with the revealed history trailing behind as a wake.
+      surfaceGroup.visible = params.showSurface;
+      if (params.showSurface) {
+        const dz = WZ / (NT - 1);
+        surfaceGroup.position.z = WZ / 2 - revealRow * dz;          // newest row → z = 0 (the line)
+        grid.position.z = surfaceGroup.position.z;              // the V=0 grid is the carpet's floor — slide it too
+        const triCount = Math.max(0, revealRow) * (NX - 1) * 6;   // draw only the wake (no future floor)
+        // The full mesh + normals are (re)built ONCE here when dirty — NOT every frame. Per frame we only
+        // grow the drawn wake (drawRange) and slide the bright leading-edge cue, both O(NX). This is what
+        // makes a large NT (smooth ridge) cheap to animate.
+        if (_carpetsDirty) { rebuildCarpets(); _carpetsDirty = false; _hlRow = -1; }
+        carpetA.geometry.setDrawRange(0, triCount);
+        if (dataB) carpetB.geometry.setDrawRange(0, triCount);
+        if (revealRow !== _hlRow) {
+          setRowHighlight(dataA, colA, carpetA.geometry, revealRow, _hlRow);
+          if (dataB) setRowHighlight(dataB, colB, carpetB.geometry, revealRow, _hlRow);
+          _hlRow = revealRow;
+        }
+      } else {
+        grid.position.z = 0;   // line-only: static ground grid centred under the cable
+      }
+
+      // time axis: shown only with the 3D surface; sits in the V=0 plane (y=0) and slides in z with the grid
+      timeAxis.visible = params.showSurface;
+      if (timeTicksMesh) timeTicksMesh.visible = params.showTimeTicks;   // hide just the tick marks (arrow stays)
+      if (params.showSurface) timeAxis.position.set(TIME_AXIS_X, 0, grid.position.z);
+
+      // HUD time + scrub sync
+      const tfrac = Math.min(revealF / (NT - 1), 1);
+      const tus = tfrac * dataA.Tdisp * 1e6, ttau = tfrac * dataA.Tdisp / dataA.tau;
+      document.getElementById('rt').textContent = `${tus.toFixed(2)} µs`;
+      document.getElementById('tlab').textContent = `t = ${tus.toFixed(2)} µs  ·  ${ttau.toFixed(2)} τ`;
+      if (window.__scrub && params.play) window.__scrub.value = tfrac * 1000;
+
+      if (camAnim) {
+        camAnim.t = Math.min(1, camAnim.t + dt * 1.6); const e = camAnim.t * camAnim.t * (3 - 2 * camAnim.t);
+        camera.position.lerpVectors(camAnim.fromP, camAnim.toP, e); controls.target.lerpVectors(camAnim.fromT, camAnim.toT, e);
+        if (camAnim.t >= 1) camAnim = null;
+      }
+      controls.autoRotate = params.autoRotate; controls.autoRotateSpeed = 0.6;
+      controls.update();
+      positionAxisLabels();
+      composer.render();
+      requestAnimationFrame(animate);
+    }
+
+    // project 3D axis label anchors to screen
+    function projectLabel(el, x, y, z) {
+      const v = new THREE.Vector3(x, y, z).project(camera);
+      const sx = (v.x * 0.5 + 0.5) * innerWidth, sy = (-v.y * 0.5 + 0.5) * innerHeight;
+      if (v.z > 1) { el.style.display = 'none'; return; }
+      el.style.display = 'block'; el.style.left = `${sx}px`; el.style.top = `${sy}px`;
+    }
+    // Cheap occlusion test: march a few dozen points along the camera→label segment and ask whether the
+    // revealed surface rises above that line of sight at any point inside the carpet footprint. This is
+    // ~40 array lookups per label instead of a full-mesh raycast (which tanked the framerate). The carpet
+    // is a heightfield V(i,j); world (x,z) maps to (i,j) via the surfaceGroup slide: world z of row j is
+    // (j − revealRow)·dz, so j = revealRow + z·(NT−1)/WZ, and i = (x + WX/2)/WX·(NX−1).
+    function occludedByCarpet(px, py, pz) {
+      if (!dataA) return false;
+      const C = camera.position, V = dataA.V, hscale = heightScaleNow();
+      const dzInv = (NT - 1) / WZ, STEPS = 40, EPS = 0.12;
+      for (let s = 1; s < STEPS; s++) {
+        const t = s / STEPS;
+        const sx = C.x + (px - C.x) * t, sy = C.y + (py - C.y) * t, sz = C.z + (pz - C.z) * t;
+        const fi = (sx + WX / 2) / WX * (NX - 1);
+        if (fi < 0 || fi > NX - 1) continue;                       // outside the cable's x-span
+        const fj = revealRow + sz * dzInv;                         // world z of row j is (j − revealRow)·dz
+        if (fj < 0 || fj > revealRow) continue;                  // not within the revealed wake
+        const ys = V[Math.round(fj) * NX + Math.round(fi)] * hscale;
+        if (sy < ys - EPS) return true;                          // surface sits above the sight line → hidden
+      }
+      return false;
+    }
+    function positionAxisLabels() {
+      const axT = document.getElementById('axT');
+      const zAx = timeAxis.position.z;
+      if (params.showSurface && !occludedByCarpet(TIME_AXIS_X, 1.4, zAx + WZ / 2 + 0.6))
+        projectLabel(axT, TIME_AXIS_X, 1.4, zAx + WZ / 2 + 0.6);
+      else axT.style.display = 'none';
+      // tick labels: DOM .axlab elements (same fixed style as "sending end · x = 0"), hidden when the
+      // surface occludes their line of sight.
+      if (params.showSurface && dataA && params.showTimeTicks) {
+        for (let i = 0; i < timeTickEls.length; i++) {
+          const wz = zAx + TIME_TICK_Z[i];
+          if (occludedByCarpet(TIME_AXIS_X + 1.6, 0, wz)) timeTickEls[i].style.display = 'none';
+          else projectLabel(timeTickEls[i], TIME_AXIS_X + 1.6, 0, wz);
+        }
+      } else { for (const el of timeTickEls) el.style.display = 'none'; }
+      projectLabel(document.getElementById('axV'), +WX / 2 + 2.5, Hworld * 1.2, -WZ / 2);
+      projectLabel(document.getElementById('lblS'), -WX / 2, 0.95, COND_Z);        // sending end node
+      projectLabel(document.getElementById('lblL'), +WX / 2, 0.95, COND_Z);        // far end node
+    }
+
+    // expose for verification
+    window.__sim = {
+      params, buildState, get dataA() { return dataA; }, get dataB() { return dataB; }, lineConstants, reflectionCoeff,
+      setState(state, compare) { if (state) params.state = state; if (compare !== undefined) params.compare = compare; cache.clear(); resetReveal(); recompute(); },
+      recompute, resetReveal, reveal(frac) { revealF = frac * (NT - 1); params.play = false; }
+    };
+
+    init();
+    animate();
+  </script>
+</body>
+
+</html>
