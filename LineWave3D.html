@@ -1344,8 +1344,11 @@
     function makeTimeAxis() {
       const g = new THREE.Group();
       const z0 = -WZ / 2, col = 0x6f8cd0;                     // base in the grid's −z edge; brightened grid tone
-      const arrow = new THREE.ArrowHelper(new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, z0), WZ, col, 1.7, 0.9);
-      arrow.line.material.linewidth = 2; g.add(arrow);
+      const arrow = new THREE.ArrowHelper(new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, z0), WZ + 2.5, col, 1.7, 0.9);
+      arrow.line.material.linewidth = 2;
+      arrow.line.material.color.setHex(0x9fb8ff);          // brighter shaft so it reads as a guide
+      arrow.cone.material.color.setHex(0xc8d8ff);           // bright blue-white tip → soft bloom glow
+      g.add(arrow);
       const nT = 8, tick = 0.7, pts = [], tickEnd = WZ / 2 - 1.9;   // last tick sits clear of the arrowhead
       for (let i = 0; i <= nT; i++) {
         const z = z0 + (i / nT) * (tickEnd - z0); pts.push(-tick, 0, z, tick, 0, z);
@@ -1859,8 +1862,8 @@
     function positionAxisLabels() {
       const axT = document.getElementById('axT');
       const zAx = timeAxis.position.z;
-      if (params.showSurface && !occludedByCarpet(TIME_AXIS_X, 1.4, zAx + WZ / 2 + 0.6))
-        projectLabel(axT, TIME_AXIS_X, 1.4, zAx + WZ / 2 + 0.6);
+      if (params.showSurface && !occludedByCarpet(TIME_AXIS_X, 1.4, zAx + WZ / 2 + 3.1))
+        projectLabel(axT, TIME_AXIS_X, 1.4, zAx + WZ / 2 + 3.1);
       else axT.style.display = 'none';
       // tick labels: DOM .axlab elements (same fixed style as "sending end · x = 0"), hidden when the
       // surface occludes their line of sight.
