@@ -703,6 +703,39 @@
       wireframe: false,
     };
 
+    // ---------- URL overrides: share a link that opens in a given scenario ----------
+    // Any key of `params` can be set from the query string, e.g.
+    //   LineWave3D.html?source=step&model=wideband&far=short&surface=1&view=time
+    // Short aliases map to the param names below; enums are validated so a typo falls back to the default.
+    const URL_ALIASES = { source: 'sourceType', model: 'state', far: 'termination', near: 'sourceTerm', surface: 'showSurface', length: 'lengthKm', window: 'windowMs' };
+    const URL_ENUMS = {
+      state: ['lossless', 'distortionless', 'bergeron', 'wideband'],
+      compare: ['off', 'lossless', 'distortionless', 'bergeron', 'wideband'],
+      sourceType: Object.keys(SOURCES),
+      termination: ['open', 'short', 'matched', 'custom'],
+      sourceTerm: ['open', 'short', 'matched', 'custom'],
+    };
+    const URL_VIEWS = ['time', 'across', 'hero'];
+    const urlSet = new Set();   // param names the URL set explicitly (so source defaults don't overwrite them)
+    let urlView = null;         // camera preset to fly to once the scene is up
+    for (const [rawKey, raw] of new URLSearchParams(location.search)) {
+      if (rawKey === 'view') { if (URL_VIEWS.includes(raw)) urlView = raw; continue; }
+      const key = URL_ALIASES[rawKey] || rawKey;
+      if (!(key in params)) continue;
+      const cur = params[key];
+      let v;
+      if (typeof cur === 'boolean') v = (raw === '1' || raw === 'true' || raw === '');
+      else if (typeof cur === 'number') { v = parseFloat(raw); if (!Number.isFinite(v)) continue; }
+      else { if (URL_ENUMS[key] && !URL_ENUMS[key].includes(raw)) continue; v = raw; }
+      params[key] = v; urlSet.add(key);
+    }
+    // A non-default source needs its own front/tail defaults (the GUI's onChange normally applies these)
+    {
+      const d = SOURCES[params.sourceType];
+      if (d.front && !urlSet.has('frontUs')) params.frontUs = d.front[3];
+      if (d.tail && !urlSet.has('tailUs')) params.tailUs = d.tail[3];
+    }
+
     // ---------- physics: build V(x,t) for a given state --------------------------
     const NX = 200;          // positions along the line
     const NT = 2000;         // displayed time rows. The surge ridge runs diagonally across (x,t), so the
@@ -1475,6 +1508,7 @@
       setupTransport();
       setupDisclosure();
       recompute();
+      if (urlView) camPreset(urlView);
     }
 
     function onResize() {
@@ -1700,7 +1734,7 @@
       travelBtn = ftw.add({ p: () => applyWindowPreset('travel') }, 'p').name('▶ traveling-wave dynamics');
       powerBtn = ftw.add({ p: () => applyWindowPreset('power') }, 'p').name('〜 power-frequency dynamics');
       const _isSine = params.sourceType === 'sine'; travelBtn.show(_isSine); powerBtn.show(_isSine);  // sine-only
-      syncWindowCtrl(true);   // seed the slider range & default (init recomputes)
+      syncWindowCtrl(!urlSet.has('windowMs'));   // seed the slider range & default (init recomputes); keep a URL-given window
 
       const ft = gui.addFolder('Terminations & source');
       const srcCtrl = ft.add(params, 'sourceTerm', { 'Short / busbar (Γ=−1, reflects)': 'short', 'Open (Γ=+1, reflects)': 'open', 'Matched (Γ=0, absorbs)': 'matched', 'Custom Z_source': 'custom' }).name('Source end (x=0)');
