@@ -436,7 +436,8 @@
       }
 
       /* lil-gui control panel: cap its height and let the folders scroll, so a
-         tall stack of sliders never runs off the bottom of the screen */
+         tall stack of sliders never runs off the bottom of the screen.
+         It starts collapsed on mobile (see buildGUI); tap the title to open. */
       .lil-gui.root {
         max-height: 62vh;
         width: min(245px, 52vw);
@@ -1654,6 +1655,21 @@
     // ---------- GUI ---------------------------------------------------------------
     function buildGUI() {
       gui = new GUI({ title: 'Line model & controls' });
+      const mobileMQ = window.matchMedia('(max-width: 700px)');
+      if (mobileMQ.matches) gui.close();   // mobile: start collapsed, tap title to open
+      // mobile: keep the panel beside the HUD, top-aligned, and cap its width to the space right of the HUD so they never overlap
+      const hudEl = document.getElementById('hud');
+      const placeGUI = () => {
+        const s = gui.domElement.style;
+        if (mobileMQ.matches && hudEl) {
+          const r = hudEl.getBoundingClientRect();
+          s.top = r.top + 'px';
+          s.width = Math.max(120, Math.min(245, window.innerWidth - r.right - 8 - 15)) + 'px';
+        } else { s.top = ''; s.width = ''; }
+      };
+      if (hudEl && window.ResizeObserver) new ResizeObserver(placeGUI).observe(hudEl);
+      window.addEventListener('resize', placeGUI);
+      placeGUI();
       let dispCtrl;                       // FD-only dispersion slider (created below, in the Line folder)
       // The FD-dispersion multiplier only feeds the wideband (FD) branch of gammaAt — lossless, distortionless
       // and Bergeron/CP never read it — so it lives with the line parameters and is shown only for the FD model.
